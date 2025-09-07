@@ -20,19 +20,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from "react-native
 
 // App header (string title, {lib:'ion', name:'...'} icon)
 import AppHeader from "../../components/AppHeader";
-
-/* ---------- Theme ---------- */
-const DARK = "#0A0F14";
-const CARD = "#111822";
-const TEXT = "#E6F1FF";
-const DIM = "#8AA0B5";
-const GREEN = "#2BF996";
-const STROKE = "#1A2430";
-const RED = "#FF4D4F";
-
-/* ---------- Spacing ---------- */
-const H_PADDING = 16;
-const TOP_SHIFT = 30;
+import { theme } from "../../constants/theme";
 
 /* ---------- Types ---------- */
 type ModeKey =
@@ -548,7 +536,7 @@ export default function WorkoutsScreen() {
         value={workoutName}
         onChangeText={setWorkoutName}
         placeholder="Workout name…"
-        placeholderTextColor={DIM}
+        placeholderTextColor={theme.colors.textLo}
         style={styles.nameInput}
       />
     );
@@ -665,22 +653,22 @@ export default function WorkoutsScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: "padding", android: undefined })}
-      style={{ flex: 1, backgroundColor: DARK }}
+      style={{ flex: 1, backgroundColor: theme.colors.bg0 }}
     >
       {/* Header */}
-      <View style={{ paddingHorizontal: H_PADDING, paddingTop: 14, marginTop: TOP_SHIFT }}>
+      <View style={{ paddingHorizontal: theme.layout.xl, paddingTop: theme.layout.lg, marginTop: 30 }}>
       <AppHeader title="Workouts" icon={({lifting:{lib:"ion",name:"barbell-outline"},basketball:{lib:"ion",name:"basketball-outline"},running:{lib:"ion",name:"walk-outline"},football:{lib:"ion",name:"american-football-outline"},soccer:{lib:"ion",name:"football-outline"},baseball:{lib:"ion",name:"baseball-outline"},hockey:{lib:"ion",name:"time"}} as const)[m]} />
         <Toolbar />
       </View>
 
       {/* BODY */}
       <ScrollView
-        style={{ flex: 1, marginTop: 18 }}
+        style={{ flex: 1, marginTop: theme.layout.lg }}
         contentContainerStyle={{
-          paddingHorizontal: H_PADDING,
-          paddingVertical: 10,
+          paddingHorizontal: theme.layout.xl,
+          paddingVertical: theme.layout.lg,
           paddingBottom: 120,
-          gap: 12,
+          gap: theme.layout.lg,
         }}
         keyboardShouldPersistTaps="handled"
       >
@@ -759,11 +747,11 @@ function FullWidthCard({
           value={item.name}
           onChangeText={onName}
           placeholder={item.kind === "exercise" ? "Exercise name…" : "Drill name…"}
-          placeholderTextColor={DIM}
+          placeholderTextColor={theme.colors.textLo}
           style={styles.cardName}
         />
         <Pressable onPress={onRemove} hitSlop={8}>
-          <Text style={{ color: DIM, fontWeight: "800" }}>×</Text>
+          <Text style={{ color: theme.colors.textLo, fontWeight: "800" }}>×</Text>
         </Pressable>
       </View>
 
@@ -781,7 +769,7 @@ function FullWidthCard({
                   onChange(idx, f.key, f.numeric ? t.replace(/[^\d.]/g, "") : t)
                 }
                 placeholder={f.label}
-                placeholderTextColor={DIM}
+                placeholderTextColor={theme.colors.textLo}
                 keyboardType={f.numeric ? "numeric" : "default"}
                 style={styles.inputMini}
               />
@@ -856,7 +844,7 @@ function RunningSection(props: {
                   latitude: p.lat,
                   longitude: p.lon,
                 }))}
-                strokeColor={GREEN}
+                strokeColor={theme.colors.primary600}
                 strokeWidth={4}
               />
             )}
@@ -874,7 +862,7 @@ function RunningSection(props: {
 
       {runState !== "idle" && (
         <View style={[styles.card, { padding: 12, gap: 10 }]}>
-          <Text style={{ color: DIM, textAlign: "center" }}>
+          <Text style={{ color: theme.colors.textLo, textAlign: "center" }}>
             {runState === "tracking"
               ? "Running"
               : runState === "paused"
@@ -910,11 +898,11 @@ function RunningSection(props: {
                 onPress={pauseRun}
                 style={[styles.ctrlBtn, styles.ctrlHollow]}
               >
-                <Text style={[styles.ctrlText, { color: TEXT }]}>Pause</Text>
+                <Text style={[styles.ctrlText, { color: theme.colors.textHi }]}>Pause</Text>
               </Pressable>
               <Pressable
                 onPress={endRun}
-                style={[styles.ctrlBtn, { backgroundColor: RED }]}
+                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
               >
                 <Text style={[styles.ctrlText, { color: "#fff" }]}>End Run</Text>
               </Pressable>
@@ -924,7 +912,7 @@ function RunningSection(props: {
             <View style={styles.ctrlRow}>
               <Pressable
                 onPress={resumeRun}
-                style={[styles.ctrlBtn, { backgroundColor: GREEN }]}
+                style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}
               >
                 <Text style={[styles.ctrlText, { color: "#052d1b" }]}>
                   Resume
@@ -932,7 +920,7 @@ function RunningSection(props: {
               </Pressable>
               <Pressable
                 onPress={endRun}
-                style={[styles.ctrlBtn, { backgroundColor: RED }]}
+                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
               >
                 <Text style={[styles.ctrlText, { color: "#fff" }]}>End Run</Text>
               </Pressable>
@@ -942,7 +930,7 @@ function RunningSection(props: {
             <View style={styles.ctrlRow}>
               <Pressable
                 onPress={saveRun}
-                style={[styles.ctrlBtn, { backgroundColor: GREEN }]}
+                style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}
               >
                 <Text style={[styles.ctrlText, { color: "#052d1b" }]}>
                   Save Run
@@ -950,7 +938,7 @@ function RunningSection(props: {
               </Pressable>
               <Pressable
                 onPress={resumeRun}
-                style={[styles.ctrlBtn, { backgroundColor: RED }]}
+                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
               >
                 <Text style={[styles.ctrlText, { color: "#fff" }]}>
                   Resume Run
@@ -961,7 +949,7 @@ function RunningSection(props: {
 
           <Text
             style={{
-              color: TEXT,
+              color: theme.colors.textHi,
               textAlign: "center",
               fontSize: 24,
               fontWeight: "900",
@@ -983,7 +971,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
 
   addWorkoutBtn: {
-    backgroundColor: GREEN,
+    backgroundColor: theme.colors.primary600,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
@@ -992,13 +980,13 @@ const styles = StyleSheet.create({
   addWorkoutText: { color: "#052d1b", fontWeight: "900", fontSize: 16 },
 
   nameInput: {
-    backgroundColor: CARD,
-    color: TEXT,
+    backgroundColor: theme.colors.surface1,
+    color: theme.colors.textHi,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
   },
   topBtn: {
     backgroundColor: "#0b1a13",
@@ -1006,21 +994,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: GREEN,
+    borderColor: theme.colors.primary600,
     alignItems: "center",
     justifyContent: "center",
   },
-  topBtnText: { color: GREEN, fontWeight: "800" },
+  topBtnText: { color: theme.colors.primary600, fontWeight: "800" },
 
   stickySaveWrap: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 16,
-    paddingHorizontal: H_PADDING,
+    paddingHorizontal: theme.layout.xl,
   },
   bigSaveBtn: {
-    backgroundColor: GREEN,
+    backgroundColor: theme.colors.primary600,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
@@ -1031,12 +1019,13 @@ const styles = StyleSheet.create({
 
   /* Card */
   card: {
-    backgroundColor: CARD,
-    borderRadius: 14,
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.radii.lg,
     borderWidth: 1,
-    borderColor: STROKE,
-    padding: 12,
+    borderColor: theme.colors.strokeSoft,
+    padding: theme.layout.lg,
     width: "100%",
+    ...theme.shadow.soft,
   },
   cardHeader: {
     flexDirection: "row",
@@ -1046,13 +1035,14 @@ const styles = StyleSheet.create({
   },
   cardName: {
     flex: 1,
-    backgroundColor: "#0C0F14",
-    color: TEXT,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: theme.colors.surface2,
+    color: theme.colors.textHi,
+    paddingHorizontal: theme.layout.lg,
+    paddingVertical: theme.layout.sm,
+    borderRadius: theme.radii.md,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
+    ...theme.text.title,
   },
 
   setGrid: {
@@ -1065,28 +1055,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#0C1016",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
     padding: 10,
     flexBasis: "23%",
     minWidth: 120,
     position: "relative",
   },
-  setBadge: { color: DIM, fontSize: 11, fontWeight: "800", marginBottom: 6 },
+  setBadge: { color: theme.colors.textLo, fontSize: 11, fontWeight: "800", marginBottom: 6 },
   inputMini: {
     backgroundColor: "#0E141C",
-    color: TEXT,
+    color: theme.colors.textHi,
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
     marginBottom: 6,
   },
   shotPct: {
     position: "absolute",
     right: 8,
     top: 8,
-    color: GREEN,
+    color: theme.colors.primary600,
     fontWeight: "900",
     fontSize: 12,
   },
@@ -1095,10 +1085,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
     backgroundColor: "#0B121A",
   },
-  setPlusText: { color: TEXT, fontWeight: "800" },
+  setPlusText: { color: theme.colors.textHi, fontWeight: "800" },
 
   /* Running cards */
   metric: {
@@ -1106,12 +1096,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#0C1016",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: STROKE,
+    borderColor: theme.colors.strokeSoft,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  metricLabel: { color: DIM, marginBottom: 4, fontWeight: "700" },
-  metricValue: { color: TEXT, fontWeight: "900", fontSize: 18 },
+  metricLabel: { color: theme.colors.textLo, marginBottom: 4, fontWeight: "700" },
+  metricValue: { color: theme.colors.textHi, fontWeight: "900", fontSize: 18 },
 
   ctrlRow: { flexDirection: "row", gap: 10, justifyContent: "center", marginTop: 4 },
   ctrlBtn: {
@@ -1121,7 +1111,7 @@ const styles = StyleSheet.create({
     minWidth: 120,
     alignItems: "center",
   },
-  ctrlHollow: { borderWidth: 1, borderColor: STROKE, backgroundColor: "#0B121A" },
+  ctrlHollow: { borderWidth: 1, borderColor: theme.colors.strokeSoft, backgroundColor: "#0B121A" },
   ctrlText: { fontWeight: "900" },
 });
 

@@ -26,13 +26,13 @@ import ProgressBar from "../../../components/ProgressBar";
 /* Macros (for lifting home) */
 type MacroKey = "calories" | "protein" | "carbs" | "fat";
 
-/** Use fixed, on-brand colors (don’t rely on theme.macro) */
+/** Use theme macro colors */
 const MACRO_COLORS: Record<MacroKey, string> = {
-  calories: "#17D67F", // green
-  protein: "#FF5A5A",  // red
-  carbs:   "#58C6FF",  // blue
-  fat:     "#F9C846",  // yellow
-};
+  calories: theme.colors.primary600,
+  protein:  theme.colors.danger,
+  carbs:    theme.colors.secondary500,
+  fat:      theme.colors.warning,
+} as const;
 
 const GOALS = { calories: 2300, protein: 160, carbs: 250, fat: 70 };
 
@@ -41,7 +41,7 @@ export default function HomeIndex() {
   const [showChooser, setShowChooser] = useState(false);
 
   // orange-ish calendar when in Basketball mode
-  const calendarColor = mode === "basketball" ? "#f59e0b" : theme.colors.textHi;
+  const calendarColor = mode === "basketball" ? theme.colors.warning : theme.colors.textHi;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg0 }}>
@@ -50,14 +50,16 @@ export default function HomeIndex() {
         // Use a union-safe icon name
         icon={{ lib: "ion", name: "time", color: calendarColor }}
         right={
-          <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             <Pressable
               onPress={() => setShowChooser(true)}
               style={({ pressed }) => ({
-                width: 48, height: 48, borderRadius: 999,
-                backgroundColor: pressed ? "#0f1114" : "#151b22",
-                borderWidth: 1, borderColor: "#1a2430",
+                width: 48, height: 48, borderRadius: theme.radii.pill,
+                backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                borderWidth: 1, borderColor: theme.colors.strokeSoft,
                 alignItems: "center", justifyContent: "center",
+                ...theme.shadow.soft,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
               })}
             >
               <MaterialCommunityIcons name="dumbbell" size={24} color={theme.colors.textHi} />
@@ -65,10 +67,12 @@ export default function HomeIndex() {
             <Pressable
               onPress={() => {}}
               style={({ pressed }) => ({
-                width: 48, height: 48, borderRadius: 12,
-                backgroundColor: pressed ? "#0f1114" : "#151b22",
-                borderWidth: 1, borderColor: "#1a2430",
+                width: 48, height: 48, borderRadius: theme.radii.lg,
+                backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                borderWidth: 1, borderColor: theme.colors.strokeSoft,
                 alignItems: "center", justifyContent: "center",
+                ...theme.shadow.soft,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
               })}
             >
               <Ionicons name="settings-outline" size={22} color={theme.colors.textHi} />
@@ -177,10 +181,10 @@ function LiftingHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -188,21 +192,20 @@ function LiftingHome() {
         <Card>
           <Text
             style={{
-              fontSize: 24,
-              fontWeight: "900",
-              color: "#111",
+              ...theme.text.h1,
+              color: theme.colors.textHi,
               textAlign: "center",
-              marginBottom: 10,
+              marginBottom: theme.layout.lg,
             }}
           >
             Workouts This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={workoutsByISO[toISO(d)]} />
             ))}
           </View>
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg, marginTop: theme.layout.lg }}>
             {days.slice(4, 7).map((d, i) => (
               <DayTile key={i} date={d} workoutName={workoutsByISO[toISO(d)]} />
             ))}
@@ -375,10 +378,10 @@ function BasketballHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -492,21 +495,20 @@ function BasketballHome() {
         <Card>
           <Text
             style={{
-              fontSize: 24,
-              fontWeight: "900",
-              color: "#111",
+              ...theme.text.h1,
+              color: theme.colors.textHi,
               textAlign: "center",
-              marginBottom: 10,
+              marginBottom: theme.layout.lg,
             }}
           >
             Practices This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={practicesByISO[toISO(d)]} />
             ))}
           </View>
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg, marginTop: theme.layout.lg }}>
             {days.slice(4, 7).map((d, i) => (
               <DayTile key={i} date={d} workoutName={practicesByISO[toISO(d)]} />
             ))}
@@ -573,10 +575,10 @@ function FootballHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -584,7 +586,7 @@ function FootballHome() {
           <Text style={{ fontSize: 24, fontWeight: "900", color: "#111", textAlign: "center", marginBottom: 10 }}>
             Training This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={sessionsByISO[toISO(d)]} />
             ))}
@@ -609,7 +611,7 @@ function FootballHome() {
                   {DRILL_LABELS[drill]}
                 </Text>
               </Pressable>
-              <ProgressRing size={170} strokeWidth={14} progress={progress} baseColor="#000000" progressColor={DRILL_COLORS[drill]} centerText={centerText} />
+              <ProgressRing size={170} strokeWidth={14} progress={progress} centerText={centerText} />
               <Text style={{ marginTop: 8, color: "#666" }}>{drill === "sprint" ? "Distance today" : "Volume today"}</Text>
             </View>
             <View style={{ flex: 1, gap: 10 }}>
@@ -686,11 +688,10 @@ function RunningHome() {
         <Card>
           <Text
             style={{
-              fontSize: 24,
-              fontWeight: "900",
-              color: "#111",
+              ...theme.text.h1,
+              color: theme.colors.textHi,
               textAlign: "center",
-              marginBottom: 10,
+              marginBottom: theme.layout.lg,
             }}
           >
             Weekly Goals
@@ -806,10 +807,10 @@ function BaseballHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -817,7 +818,7 @@ function BaseballHome() {
           <Text style={{ fontSize: 24, fontWeight: "900", color: "#111", textAlign: "center", marginBottom: 10 }}>
             Training This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={sessionsByISO[toISO(d)]} />
             ))}
@@ -842,7 +843,9 @@ function BaseballHome() {
                   {DRILL_LABELS[drill]}
                 </Text>
               </Pressable>
-              <ProgressRing size={170} strokeWidth={14} progress={progress} baseColor="#000000" progressColor={DRILL_COLORS[drill]} centerText={centerText} />
+              <ProgressRing size={170} strokeWidth={14} progress={progress} centerText={centerText} />
+
+
               <Text style={{ marginTop: 8, color: "#666" }}>{drill === "pitching" ? "Throws today" : "Volume today"}</Text>
             </View>
             <View style={{ flex: 1, gap: 10 }}>
@@ -921,10 +924,10 @@ function SoccerHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -932,7 +935,7 @@ function SoccerHome() {
           <Text style={{ fontSize: 24, fontWeight: "900", color: "#111", textAlign: "center", marginBottom: 10 }}>
             Training This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={sessionsByISO[toISO(d)]} />
             ))}
@@ -975,8 +978,9 @@ function SoccerHome() {
                 size={170}
                 strokeWidth={14}
                 progress={progress}
-                baseColor="#000000"
-                progressColor={DRILL_COLORS[drill]}
+               
+
+               progressColor={DRILL_COLORS[drill]}
                 centerText={centerText}
               />
               <Text style={{ marginTop: 8, color: "#666" }}>
@@ -1065,26 +1069,25 @@ function HockeyHome() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: theme.layout.xl,
           paddingBottom: 120,
-          paddingTop: 10,
-          gap: 16,
+          paddingTop: theme.layout.lg,
+          gap: theme.layout.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
         <Card>
           <Text
             style={{
-              fontSize: 24,
-              fontWeight: "900",
-              color: "#111",
+              ...theme.text.h1,
+              color: theme.colors.textHi,
               textAlign: "center",
-              marginBottom: 10,
+              marginBottom: theme.layout.lg,
             }}
           >
             Training This Week
           </Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: theme.layout.lg }}>
             {days.slice(0, 4).map((d, i) => (
               <DayTile key={i} date={d} workoutName={sessionsByISO[toISO(d)]} />
             ))}
@@ -1115,7 +1118,8 @@ function HockeyHome() {
                   {DRILL_LABELS[drill]}
                 </Text>
               </Pressable>
-              <ProgressRing size={170} strokeWidth={14} progress={progress} baseColor="#000000" progressColor={DRILL_COLORS[drill]} centerText={centerText} />
+              <ProgressRing size={170} strokeWidth={14} progress={progress} centerText={centerText} />
+
               <Text style={{ marginTop: 8, color: "#666" }}>
                 {drill === "skating" ? "Minutes today" : drill === "shooting" ? "Shots today" : "Touches today"}
               </Text>
@@ -1164,10 +1168,17 @@ function HockeyHome() {
 
 /* ======================= SHARED LOCAL UI (small helpers) ======================= */
 function CardTitle({ children }: { children: React.ReactNode }) {
-  return <Text style={{ fontSize: 16, fontWeight: "900", color: "#111" }}>{children}</Text>;
+  return <Text style={{ 
+    ...theme.text.h2,
+    color: theme.colors.textHi,
+    marginBottom: theme.layout.sm,
+  }}>{children}</Text>;
 }
 function Muted({ children }: { children: React.ReactNode }) {
-  return <Text style={{ color: "#777", fontWeight: "700" }}>{children}</Text>;
+  return <Text style={{ 
+    ...theme.text.muted,
+    color: theme.colors.textLo,
+  }}>{children}</Text>;
 }
 function MiniStat({ color, label, value }: { color: string; label: string; value: string }) {
   return (
@@ -1226,8 +1237,8 @@ function DayTile({ date, workoutName }: { date: Date; workoutName?: string }) {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
 
-  const borderColor = isToday ? theme.colors.brand : "#e8e8e8";
-  const bgColor = isToday ? "#fff7ed" : "#fff";
+  const borderColor = isToday ? theme.colors.primary600 : theme.colors.strokeSoft;
+  const bgColor = isToday ? theme.colors.surface2 : theme.colors.surface1;
 
   return (
     <View
@@ -1235,33 +1246,38 @@ function DayTile({ date, workoutName }: { date: Date; workoutName?: string }) {
         flex: 1,
         minWidth: 0,
         height: 96,
-        borderRadius: 14,
+        borderRadius: theme.radii.lg,
         backgroundColor: bgColor,
-        borderWidth: 2,
+        borderWidth: isToday ? 2 : 1,
         borderColor,
-        padding: 10,
+        padding: theme.layout.lg,
         justifyContent: "flex-start",
+        ...theme.shadow.soft,
+        ...(isToday ? {
+          shadowColor: theme.colors.primary600,
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 6,
+        } : {}),
       }}
     >
       <Text
         style={{
           position: "absolute",
-          top: 8,
-          left: 10,
-          fontSize: 11,
-          fontWeight: "800",
-          color: isToday ? "#92400e" : "#666",
+          top: theme.layout.sm,
+          left: theme.layout.lg,
+          ...theme.text.label,
+          color: isToday ? theme.colors.primary600 : theme.colors.textLo,
         }}
         numberOfLines={1}
       >
         {label}
       </Text>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 6 }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: theme.layout.xs }}>
         <Text
           style={{
-            fontSize: 13,
-            fontWeight: "800",
-            color: workoutName ? "#111" : "#999",
+            ...theme.text.muted,
+            color: workoutName ? theme.colors.textHi : theme.colors.textLo,
             textAlign: "center",
           }}
         >
@@ -1279,30 +1295,49 @@ function StreakTile() {
         flex: 1,
         minWidth: 0,
         height: 96,
-        borderRadius: 14,
-        backgroundColor: "#0f1317",
+        borderRadius: theme.radii.lg,
+        backgroundColor: theme.colors.surface2,
         borderWidth: 1,
-        borderColor: "#171d23",
-        padding: 10,
+        borderColor: theme.colors.strokeSoft,
+        padding: theme.layout.lg,
+        ...theme.shadow.soft,
+        shadowColor: theme.colors.primary600,
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 4,
       }}
     >
       <Text
         style={{
           position: "absolute",
-          top: 6,
-          left: 10,
-          fontSize: 10,
-          fontWeight: "800",
-          color: "#9aa3ad",
+          top: theme.layout.xs,
+          left: theme.layout.lg,
+          ...theme.text.label,
+          color: theme.colors.textLo,
         }}
         numberOfLines={1}
       >
         Workout Streak
       </Text>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Ionicons name="flame" size={18} color={theme.colors.brand} />
-          <Text style={{ fontSize: 22, fontWeight: "900", color: theme.colors.brand }}>0</Text>
+        <View style={{ marginTop: theme.layout.xs, flexDirection: "row", alignItems: "center", gap: theme.layout.sm }}>
+          <Ionicons 
+            name="flame" 
+            size={20} 
+            color={theme.colors.primary600}
+            style={{
+              shadowColor: theme.colors.primary600,
+              shadowOpacity: 0.6,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          />
+          <Text style={{ 
+            ...theme.text.h2,
+            color: theme.colors.primary600,
+          }}>
+            0
+          </Text>
         </View>
       </View>
     </View>

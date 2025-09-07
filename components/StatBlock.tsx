@@ -1,55 +1,107 @@
 // components/StatBlock.tsx
 import React from "react";
 import { View, Text } from "react-native";
-import theme from "@/constants/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { theme } from "@/constants/theme";
 
 type Props = {
   label: string;
   value: string;
   color?: string;
+  progress?: number; // 0..1 for micro progress bar
+  icon?: React.ReactNode;
 };
 
-function StatBlock({ label, value, color }: Props) {
-  const barColor = color ?? theme.colors.secondary500; // use 500, not 400
+function StatBlock({ label, value, color, progress, icon }: Props) {
+  const barColor = color ?? theme.colors.secondary500;
+  const progressValue = progress ?? 0.6; // default 60% if not provided
+  
   return (
     <View
       style={{
-        borderRadius: theme.radii.md,
+        borderRadius: theme.radii.lg,
         backgroundColor: theme.colors.surface2,
         borderWidth: 1,
         borderColor: theme.colors.strokeSoft,
-        padding: 12,
+        padding: theme.layout.lg,
+        ...theme.shadow.soft,
+        overflow: "hidden",
       }}
     >
-      <Text style={{ color: theme.color.dim, fontWeight: "700" }}>{label}</Text>
-      <Text
+      {/* Subtle gradient overlay */}
+      <LinearGradient
+        colors={theme.gradients.surface}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
         style={{
-          color: theme.color.text,
-          fontWeight: "900",
-          marginTop: 6,
-          fontSize: 18,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
         }}
-      >
-        {value}
-      </Text>
+      />
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ 
+            color: theme.colors.textLo, 
+            ...theme.text.muted,
+          }}>
+            {label}
+          </Text>
+          <Text
+            style={{
+              color: theme.colors.textHi,
+              ...theme.text.h2,
+              marginTop: theme.layout.xs,
+            }}
+          >
+            {value}
+          </Text>
+        </View>
+        
+        {icon && (
+          <View style={{ marginLeft: theme.layout.sm }}>
+            {icon}
+          </View>
+        )}
+      </View>
+
+      {/* Micro progress bar */}
       <View
         style={{
-          height: 8,
-          borderRadius: theme.radii.full,
-          backgroundColor: "rgba(255,255,255,0.06)",
+          height: 6,
+          borderRadius: theme.radii.pill,
+          backgroundColor: theme.colors.surface1,
           overflow: "hidden",
-          marginTop: 10,
+          marginTop: theme.layout.lg,
           borderWidth: 1,
           borderColor: theme.colors.strokeSoft,
         }}
       >
         <View
           style={{
-            width: "60%",
+            width: `${Math.max(0, Math.min(1, progressValue)) * 100}%`,
             height: "100%",
-            backgroundColor: barColor,
+            borderRadius: theme.radii.pill,
+            shadowColor: barColor,
+            shadowOpacity: 0.4,
+            shadowRadius: 4,
+            elevation: 2,
           }}
-        />
+        >
+          <LinearGradient
+            colors={[barColor, `${barColor}CC`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              width: "100%",
+              height: "100%",
+              borderRadius: theme.radii.pill,
+            }}
+          />
+        </View>
       </View>
     </View>
   );

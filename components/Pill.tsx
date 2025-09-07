@@ -1,7 +1,8 @@
 // components/Pill.tsx
 import React from "react";
 import { View, Text, StyleProp, ViewStyle } from "react-native";
-import theme from "@/constants/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { theme } from "@/constants/theme";
 
 type Props = {
   label: string;
@@ -10,33 +11,54 @@ type Props = {
 };
 
 function Pill({ label, color, style }: Props) {
-  const c = color ?? theme.colors.purple; // we added purple to theme.colors
+  const c = color ?? theme.colors.primary600;
   return (
     <View
       style={[
         {
-          paddingVertical: 8,
-          paddingHorizontal: 12,
-          borderRadius: theme.radii.full,
-          backgroundColor: "rgba(255,255,255,0.02)",
+          borderRadius: theme.radii.pill,
           borderWidth: 1,
-          borderColor: theme.colors.strokeSoft,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
+          borderColor: c,
+          overflow: "hidden",
+          shadowColor: c,
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          elevation: 2,
         },
         style,
       ]}
     >
-      <View
+      <LinearGradient
+        colors={[`${c}20`, `${c}10`]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
         style={{
-          width: 10,
-          height: 10,
-          borderRadius: 2,
-          backgroundColor: c,
+          paddingVertical: theme.layout.sm,
+          paddingHorizontal: theme.layout.lg,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: theme.layout.sm,
         }}
-      />
-      <Text style={{ color: theme.color.text, fontWeight: "800" }}>{label}</Text>
+      >
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: theme.radii.sm,
+            backgroundColor: c,
+            shadowColor: c,
+            shadowOpacity: 0.6,
+            shadowRadius: 2,
+            elevation: 1,
+          }}
+        />
+        <Text style={{ 
+          color: theme.colors.textHi, 
+          ...theme.text.label,
+        }}>
+          {label}
+        </Text>
+      </LinearGradient>
     </View>
   );
 }

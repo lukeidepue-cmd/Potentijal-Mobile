@@ -17,14 +17,16 @@ import {
   useMeals,
   type Food,
 } from "../../../providers/MealsContext";
+import { theme } from "../../../constants/theme";
 
-const DARK = "#0A0F14";
-const CARD = "#111822";
-const TEXT = "#E6F1FF";
-const DIM = "#8AA0B5";
-const GREEN = "#2BF996";
-const STROKE = "#1A2430";
-const ORANGE = "#FF9F1C";
+// Local aliases to keep JSX readable (replaces TEXT/STROKE/DIM/ORANGE/GREEN/CARD)
+const TEXT = theme.colors.textHi;
+const STROKE = theme.colors.strokeSoft;
+const DIM = theme.colors.textLo;
+const GREEN = theme.colors.primary600;
+// soft amber background for the "burned calories" card
+const ORANGE = "rgba(245, 158, 11, 0.18)";
+const CARD = theme.colors.surface1;
 
 export default function MealsHome() {
   const router = useRouter();
@@ -86,19 +88,23 @@ export default function MealsHome() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: DARK }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg0 }}>
       <AppHeader title="Meals" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1, padding: 14, paddingBottom: 24 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: theme.layout.lg,
+          paddingBottom: theme.layout.xxl,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         {/* ===== Each Meal Section ===== */}
         {MEAL_TYPES.map((meal) => {
           const total = totalsFor(meal).calories;
           return (
-            <View key={meal} style={{ marginTop: 14 }}>
+            <View key={meal} style={{ marginTop: theme.layout.lg }}>
               {/* "Add to Meal" bar */}
               <Pressable
                 onPress={() =>
@@ -139,13 +145,21 @@ export default function MealsHome() {
                           – {e.name}
                           {portion}
                         </Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <Text style={styles.kcalRight}>{t.calories}</Text>
                           <Pressable
                             onPress={() => removeFood(meal, e.entryId)}
                             style={styles.removeBtn}
                           >
-                            <Text style={{ color: TEXT, fontWeight: "800" }}>×</Text>
+                            <Text style={{ color: TEXT, fontWeight: "800" }}>
+                              ×
+                            </Text>
                           </Pressable>
                         </View>
                       </Pressable>
@@ -191,7 +205,11 @@ export default function MealsHome() {
             <Text style={styles.sheetTitle}>Add “{incoming.name}” to:</Text>
             <View style={styles.sheetButtons}>
               {MEAL_TYPES.map((m) => (
-                <Pressable key={m} onPress={() => addIncomingTo(m)} style={styles.sheetBtn}>
+                <Pressable
+                  key={m}
+                  onPress={() => addIncomingTo(m)}
+                  style={styles.sheetBtn}
+                >
                   <Text style={styles.sheetBtnText}>{m}</Text>
                 </Pressable>
               ))}
@@ -209,26 +227,28 @@ export default function MealsHome() {
 /* ---------------- Styles ---------------- */
 const styles = StyleSheet.create({
   mealBar: {
-    backgroundColor: "#1b2a1f",
+    backgroundColor: theme.colors.surface2,
     borderWidth: 1,
-    borderColor: STROKE,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    borderColor: theme.colors.strokeSoft,
+    borderRadius: theme.radii.lg,
+    paddingVertical: theme.layout.lg,
+    paddingHorizontal: theme.layout.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    ...theme.shadow.soft,
   },
-  mealBarText: { color: TEXT, fontWeight: "900", fontSize: 16 },
-  mealBarKcal: { color: GREEN, fontWeight: "900", fontSize: 18 },
+  mealBarText: { color: theme.colors.textHi, ...theme.text.title },
+  mealBarKcal: { color: theme.colors.primary600, ...theme.text.h2 },
 
   itemsCard: {
-    backgroundColor: CARD,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: STROKE,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 8,
+    borderColor: theme.colors.strokeSoft,
+    borderRadius: theme.radii.lg,
+    padding: theme.layout.lg,
+    marginTop: theme.layout.sm,
+    ...theme.shadow.soft,
   },
   itemRow: {
     flexDirection: "row",
