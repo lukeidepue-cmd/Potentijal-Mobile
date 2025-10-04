@@ -1,5 +1,5 @@
 // app/(tabs)/workouts.tsx
-// Simplified, one-card-per-row workouts with universal Set+ per square
+// Revamped Workouts tab: pro header + compact set layout + angled inputs + per-mode toolbars
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -11,157 +11,128 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMode } from "../../providers/ModeContext";
-
 import * as Location from "expo-location";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from "react-native-maps";
-
-// App header (string title, {lib:'ion', name:'...'} icon)
-import AppHeader from "../../components/AppHeader";
 import { theme } from "../../constants/theme";
 
-/* ---------- Types ---------- */
+/* ---------------- Fonts (match Home pages) ---------------- */
+import {
+  useFonts as useGeist,
+  Geist_400Regular,
+  Geist_500Medium,
+  Geist_600SemiBold,
+  Geist_700Bold,
+  Geist_800ExtraBold,
+} from "@expo-google-fonts/geist";
+import {
+  useFonts as useSpaceGrotesk,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from "@expo-google-fonts/space-grotesk";
+
+/* ---------------- Types ---------------- */
 type ModeKey =
   | "lifting"
   | "basketball"
-  | "running"
   | "football"
-  | "soccer"
+  | "running"
   | "baseball"
-  | "hockey";
+  | "soccer"
+  | "hockey"
+  | "tennis";
 
-// unified "square" kinds per mode
 type ItemKind =
-  // shared
   | "exercise"
   // basketball
   | "bb_shot"
   // football
+  | "fb_drill"
   | "fb_sprint"
-  | "fb_catch"
-  | "fb_throw"
-  | "fb_tackle"
+  // soccer
+  | "sc_drill"
+  | "sc_shoot"
   // baseball
   | "bs_hit"
   | "bs_field"
-  | "bs_sprint"
   // hockey
+  | "hk_drill"
   | "hk_shoot"
-  | "hk_skate"
-  | "hk_stick"
-  // soccer
-  | "sc_dribble"
-  | "sc_shoot"
-  | "sc_pass"
-  | "sc_sprint";
+  // tennis
+  | "tn_drill"
+  | "tn_rally";
 
 type SetRecord = Record<string, string>;
+type AnyItem = { id: string; kind: ItemKind; name: string; sets: SetRecord[] };
+type DraftTuple = readonly [AnyItem[], React.Dispatch<React.SetStateAction<AnyItem[]>>];
 
-type AnyItem = {
-  id: string;
-  kind: ItemKind;
-  name: string;
-  sets: SetRecord[]; // fields vary by kind
-};
-
-type DraftTuple = readonly [
-  AnyItem[],
-  React.Dispatch<React.SetStateAction<AnyItem[]>>
-];
-
-/* ---------- Helpers ---------- */
+/* ---------------- Helpers ---------------- */
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-/* ---------- Field templates per square kind ---------- */
-const FIELD_SETS: Record<
-  ItemKind,
-  { key: string; label: string; numeric?: boolean }[]
-> = {
-  // Exercise: Reps + Weight (your spec)
+/** Field templates per kind (order = vertical stacking) */
+const FIELD_SETS: Record<ItemKind, { key: string; label: string; numeric?: boolean }[]> = {
+  // Shared
   exercise: [
     { key: "reps", label: "Reps", numeric: true },
     { key: "weight", label: "Weight (lb)", numeric: true },
   ],
-
-  // Basketball shot: Attempted + Made
+  // Basketball
   bb_shot: [
     { key: "attempted", label: "Attempted", numeric: true },
     { key: "made", label: "Made", numeric: true },
   ],
-
   // Football
+  fb_drill: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "completed", label: "Completed", numeric: true },
+  ],
   fb_sprint: [
     { key: "reps", label: "Reps", numeric: true },
     { key: "distance", label: "Distance", numeric: false },
     { key: "avgTime", label: "Avg. Time", numeric: false },
   ],
-  fb_catch: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-  ],
-  fb_throw: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-  ],
-  fb_tackle: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-  ],
-
-  // Baseball
-  bs_hit: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "avgDistance", label: "Avg. Distance (ft)", numeric: true },
-  ],
-  bs_field: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-  ],
-  bs_sprint: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-    { key: "avgTime", label: "Avg. Time", numeric: false },
-  ],
-
-  // Hockey
-  hk_shoot: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-  ],
-  hk_skate: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-    { key: "avgTime", label: "Avg. Time", numeric: false },
-  ],
-  hk_stick: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "time", label: "Time", numeric: false },
-  ],
-
   // Soccer
-  sc_sprint: [
+  sc_drill: [
     { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
-    { key: "avgTime", label: "Avg. Time", numeric: false },
-  ],
-  sc_dribble: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
     { key: "time", label: "Time", numeric: false },
-  ],
-  sc_pass: [
-    { key: "reps", label: "Reps", numeric: true },
-    { key: "distance", label: "Distance", numeric: false },
   ],
   sc_shoot: [
     { key: "reps", label: "Reps", numeric: true },
     { key: "distance", label: "Distance", numeric: false },
   ],
+  // Baseball
+  bs_hit: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "avgDistance", label: "Avg. Distance", numeric: true },
+  ],
+  bs_field: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "distance", label: "Distance", numeric: false },
+  ],
+  // Hockey
+  hk_drill: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "time", label: "Time", numeric: false },
+  ],
+  hk_shoot: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "distance", label: "Distance", numeric: false },
+  ],
+  // Tennis
+  tn_drill: [
+    { key: "reps", label: "Reps", numeric: true },
+    { key: "time", label: "Time", numeric: false },
+  ],
+  tn_rally: [
+    { key: "points", label: "Points", numeric: true },
+    { key: "time", label: "Time", numeric: false },
+  ],
 };
 
-/* ---------- Running helpers ---------- */
+/* ---------------- Running helpers ---------------- */
 type Pt = { lat: number; lon: number; ts: number; acc?: number };
 const toRad = (d: number) => (d * Math.PI) / 180;
 function haversine(a: Pt, b: Pt): number {
@@ -190,109 +161,103 @@ const mToMi = (m: number) => m / 1609.344;
 const paceStr = (secPerMile: number | null) =>
   secPerMile == null || !isFinite(secPerMile) || secPerMile <= 0
     ? "—"
-    : `${Math.floor(secPerMile / 60)}:${String(
-        Math.round(secPerMile % 60)
-      ).padStart(2, "0")}/mi`;
+    : `${Math.floor(secPerMile / 60)}:${String(Math.round(secPerMile % 60)).padStart(2, "0")}/mi`;
 const timeStr = (s: number) => {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = Math.floor(s % 60);
-  return `${h > 0 ? h + ":" : ""}${String(m).padStart(2, "0")}:${String(
-    ss
-  ).padStart(2, "0")}`;
+  return `${h > 0 ? h + ":" : ""}${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 };
 
-/* ----------------------------------------------------------------------------
+/* ---------------- Fonts map ---------------- */
+const FONT = {
+  displayMed: "SpaceGrotesk_600SemiBold",
+  displayBold: "SpaceGrotesk_700Bold", // Font 3
+  uiRegular: "Geist_400Regular",
+  uiMedium: "Geist_500Medium",
+  uiSemi: "Geist_600SemiBold", // Font 2 (chips)
+  uiBold: "Geist_700Bold",
+  uiXBold: "Geist_800ExtraBold",
+} as const;
+
+/* ============================================================================
    Screen
----------------------------------------------------------------------------- */
+============================================================================ */
 export default function WorkoutsScreen() {
-  const router = useRouter();
   const { mode } = useMode();
   const m = (mode || "lifting").toLowerCase() as ModeKey;
+
+  // Load fonts to match Home pages
+  const [geistLoaded] = useGeist({
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    Geist_700Bold,
+    Geist_800ExtraBold,
+  });
+  const [sgLoaded] = useSpaceGrotesk({
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+  });
+  const fontsReady = geistLoaded && sgLoaded;
 
   /* ---------- top meta ---------- */
   const [isCreating, setIsCreating] = useState(false);
   const [workoutName, setWorkoutName] = useState("");
 
-  /* ---------- unified drafts per mode (now includes running to satisfy ModeKey) ---------- */
+  /* ---------- per-mode drafts ---------- */
   const [liftDraft, setLiftDraft] = useState<AnyItem[]>([]);
   const [bbDraft, setBbDraft] = useState<AnyItem[]>([]);
   const [fbDraft, setFbDraft] = useState<AnyItem[]>([]);
   const [bsDraft, setBsDraft] = useState<AnyItem[]>([]);
-  const [hkDraft, setHkDraft] = useState<AnyItem[]>([]);
   const [scDraft, setScDraft] = useState<AnyItem[]>([]);
-  const [runDraft, setRunDraft] = useState<AnyItem[]>([]); // unused list, fixes indexing by ModeKey
+  const [hkDraft, setHkDraft] = useState<AnyItem[]>([]);
+  const [tnDraft, setTnDraft] = useState<AnyItem[]>([]);
+  const [runDraft, setRunDraft] = useState<AnyItem[]>([]); // placeholder list
 
   const drafts: Record<ModeKey, DraftTuple> = {
     lifting: [liftDraft, setLiftDraft],
     basketball: [bbDraft, setBbDraft],
     football: [fbDraft, setFbDraft],
-    baseball: [bsDraft, setBsDraft],
-    hockey: [hkDraft, setHkDraft],
-    soccer: [scDraft, setScDraft],
     running: [runDraft, setRunDraft],
+    baseball: [bsDraft, setBsDraft],
+    soccer: [scDraft, setScDraft],
+    hockey: [hkDraft, setHkDraft],
+    tennis: [tnDraft, setTnDraft],
   };
 
-  // Current tuple for this mode (no effect needed)
-  const curTuple: DraftTuple = drafts[m];
-  const list: AnyItem[] = curTuple[0];
-  const setList: React.Dispatch<React.SetStateAction<AnyItem[]>> = curTuple[1];
+  const [list, setList] = drafts[m];
 
-  /* ---------- add-item helpers per mode ---------- */
+  /* ---------- actions ---------- */
   const addItem = (kind: ItemKind) => {
-    const fields = FIELD_SETS[kind];
     const empty: SetRecord = {};
-    fields.forEach((f) => (empty[f.key] = ""));
-    setList((cur: AnyItem[]) => [
-      ...cur,
-      {
-        id: uid(),
-        kind,
-        name: "",
-        sets: [{ ...empty }],
-      },
-    ]);
+    FIELD_SETS[kind].forEach((f) => (empty[f.key] = ""));
+    setList((cur) => [...cur, { id: uid(), kind, name: "", sets: [{ ...empty }] }]);
   };
 
-  const updateName = (id: string, name: string) => {
-    setList((cur: AnyItem[]) =>
-      cur.map((x: AnyItem) => (x.id === id ? { ...x, name } : x))
-    );
-  };
+  const updateName = (id: string, name: string) =>
+    setList((cur) => cur.map((x) => (x.id === id ? { ...x, name } : x)));
 
-  const removeItem = (id: string) => {
-    setList((cur: AnyItem[]) => cur.filter((x: AnyItem) => x.id !== id));
-  };
+  const removeItem = (id: string) => setList((cur) => cur.filter((x) => x.id !== id));
 
   const addSet = (id: string) => {
-    const item = list.find((x: AnyItem) => x.id === id);
+    const item = list.find((x) => x.id === id);
     if (!item) return;
-    const fields = FIELD_SETS[item.kind];
     const empty: SetRecord = {};
-    fields.forEach((f) => (empty[f.key] = ""));
-    setList((cur: AnyItem[]) =>
-      cur.map((x: AnyItem) =>
-        x.id === id ? { ...x, sets: [...x.sets, { ...empty }] } : x
-      )
-    );
+    FIELD_SETS[item.kind].forEach((f) => (empty[f.key] = ""));
+    setList((cur) => cur.map((x) => (x.id === id ? { ...x, sets: [...x.sets, { ...empty }] } : x)));
   };
 
   const updateSet = (id: string, index: number, key: string, value: string) => {
-    setList((cur: AnyItem[]) =>
-      cur.map((x: AnyItem) =>
+    setList((cur) =>
+      cur.map((x) =>
         x.id !== id
           ? x
-          : {
-              ...x,
-              sets: x.sets.map((s: SetRecord, i: number) =>
-                i === index ? { ...s, [key]: value } : s
-              ),
-            }
+          : { ...x, sets: x.sets.map((s, i) => (i === index ? { ...s, [key]: value } : s)) }
       )
     );
   };
 
-  /* ---------- Save ---------- */
   const saveWorkout = () => {
     if (!workoutName.trim()) {
       Alert.alert("Name your workout", "Please give your workout a name.");
@@ -308,14 +273,11 @@ export default function WorkoutsScreen() {
     setWorkoutName("");
   };
 
-  /* ----------------------------------------------------------------------------
-     RUNNING
-  ---------------------------------------------------------------------------- */
+  /* ---------- Running state ---------- */
   type RunState = "idle" | "tracking" | "paused" | "finished";
   const [runState, setRunState] = useState<RunState>("idle");
   const [points, setPoints] = useState<Pt[]>([]);
   const [elapsed, setElapsed] = useState(0);
-
   const locSub = useRef<Location.LocationSubscription | null>(null);
   const timerRef = useRef<any>(null);
 
@@ -325,7 +287,6 @@ export default function WorkoutsScreen() {
     () => (distanceMi > 0 ? Math.round(elapsed / distanceMi) : null),
     [elapsed, distanceMi]
   );
-
   const currentPaceSec = useMemo(() => {
     if (points.length < 2) return null;
     let d = 0;
@@ -394,7 +355,7 @@ export default function WorkoutsScreen() {
         distanceInterval: 5,
       },
       (loc) =>
-        setPoints((prev: Pt[]) => [
+        setPoints((prev) => [
           ...prev,
           {
             lat: loc.coords.latitude,
@@ -407,7 +368,6 @@ export default function WorkoutsScreen() {
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
     setRunState("tracking");
   };
-
   const pauseRun = () => {
     if (locSub.current) {
       locSub.current.remove();
@@ -428,7 +388,7 @@ export default function WorkoutsScreen() {
         distanceInterval: 5,
       },
       (loc) =>
-        setPoints((prev: Pt[]) => [
+        setPoints((prev) => [
           ...prev,
           {
             lat: loc.coords.latitude,
@@ -458,41 +418,45 @@ export default function WorkoutsScreen() {
     Alert.alert("Saved!", "Run added to your recent list.");
   };
 
-  /* ---------- Header icon as a literal union to satisfy AppHeader ---------- */
-  const headerIconForMode = useMemo(() => {
-    switch (m) {
-      case "lifting":
-        return { lib: "ion", name: "barbell-outline" as const };
-      case "basketball":
-        return { lib: "ion", name: "basketball-outline" as const };
-      case "running":
-        return { lib: "ion", name: "walk-outline" as const };
-      case "football":
-        return { lib: "ion", name: "american-football-outline" as const };
-      case "soccer":
-        return { lib: "ion", name: "football-outline" as const };
-      case "baseball":
-        return { lib: "ion", name: "baseball-outline" as const };
-      case "hockey":
-        // Placeholder; Ionicons lacks hockey puck
-        return { lib: "ion", name: "ice-cream-outline" as const };
-      default:
-        return { lib: "ion", name: "barbell-outline" as const };
-    }
-  }, [m]);
+  /* ---------- sport icon (right pill) ---------- */
+  const RightIcon = () => {
+    const iconProps = { size: 18, color: theme.colors.textHi } as const;
+    const inner = (() => {
+      switch (m) {
+        case "lifting":
+          return <Ionicons name="barbell-outline" {...iconProps} />;
+        case "basketball":
+          return <Ionicons name="basketball-outline" {...iconProps} />;
+        case "football":
+          return <Ionicons name="american-football-outline" {...iconProps} />;
+        case "running":
+          return <Ionicons name="walk-outline" {...iconProps} />;
+        case "soccer":
+          return <Ionicons name="football-outline" {...iconProps} />;
+        case "baseball":
+          return <Ionicons name="baseball-outline" {...iconProps} />;
+        case "hockey":
+          return <MaterialCommunityIcons name="hockey-sticks" size={18} color={theme.colors.textHi} />;
+        case "tennis":
+          return <MaterialCommunityIcons name="tennis" size={18} color={theme.colors.textHi} />;
+        default:
+          return <Ionicons name="barbell-outline" {...iconProps} />;
+      }
+    })();
+    return (
+      <View style={styles.iconPill}>
+        {inner}
+      </View>
+    );
+  };
 
-  /* ----------------------------------------------------------------------------
-     RENDER
-  ---------------------------------------------------------------------------- */
-  // Toolbar layout per mode (rows, with fractional widths)
+  /* ---------- toolbar (name + “green boxes”) ---------- */
   const Toolbar = () => {
     if (m === "running") {
       return (
-        <>
-          <Pressable onPress={startRun} style={styles.addWorkoutBtn}>
-            <Text style={styles.addWorkoutText}>+ Start Run</Text>
-          </Pressable>
-        </>
+        <Pressable onPress={startRun} style={styles.addWorkoutBtn}>
+          <Text style={[styles.addWorkoutText, { fontFamily: FONT.displayBold }]}>+ Start Run</Text>
+        </Pressable>
       );
     }
 
@@ -505,32 +469,21 @@ export default function WorkoutsScreen() {
           }}
           style={styles.addWorkoutBtn}
         >
-          <Text style={styles.addWorkoutText}>+ Add Workout</Text>
+          <Text style={[styles.addWorkoutText, { fontFamily: FONT.displayBold }]}>+ Add Workout</Text>
         </Pressable>
       );
     }
 
-    const Button = ({
-      label,
-      onPress,
-      flex = 1,
-    }: {
-      label: string;
-      onPress: () => void;
-      flex?: number;
-    }) => (
+    const Button = ({ label, onPress, flex = 1 }: { label: string; onPress: () => void; flex?: number }) => (
       <Pressable onPress={onPress} style={[styles.topBtn, { flex }]}>
-        <Text style={styles.topBtnText} numberOfLines={1}>
+        <Text style={[styles.topBtnText, { fontFamily: FONT.uiSemi }]} numberOfLines={1}>
           {label}
         </Text>
       </Pressable>
     );
 
-    // per-mode configs
-    const row1: React.ReactNode[] = [];
-    const row2: React.ReactNode[] = [];
-
-    const nameBox = (
+    // first row: workout name full width
+    const nameRow = (
       <TextInput
         key="name"
         value={workoutName}
@@ -541,123 +494,68 @@ export default function WorkoutsScreen() {
       />
     );
 
+    // second row: per-mode green boxes
+    const rowBtns: React.ReactNode[] = [];
     if (m === "lifting") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
     } else if (m === "basketball") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
-      row1.push(
-        <Button key="+shot" label="+ Shot" onPress={() => addItem("bb_shot")} flex={1} />
-      );
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+shot" label="+ Shooting" onPress={() => addItem("bb_shot")} />);
+      rowBtns.push(<Button key="+drill" label="+ Drill" onPress={() => addItem("sc_drill")} />);
     } else if (m === "football") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
-      row1.push(
-        <Button key="+spr" label="+ Sprints" onPress={() => addItem("fb_sprint")} flex={1} />
-      );
-      row2.push(
-        <Button key="+catch" label="+ Catching" onPress={() => addItem("fb_catch")} />
-      );
-      row2.push(
-        <Button key="+throw" label="+ Throwing" onPress={() => addItem("fb_throw")} />
-      );
-      row2.push(
-        <Button key="+tackle" label="+ Tackling" onPress={() => addItem("fb_tackle")} />
-      );
-    } else if (m === "baseball") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
-      row2.push(
-        <Button key="+hit" label="+ Hitting" onPress={() => addItem("bs_hit")} />
-      );
-      row2.push(
-        <Button key="+field" label="+ Fielding" onPress={() => addItem("bs_field")} />
-      );
-      row2.push(
-        <Button key="+spr" label="+ Sprints" onPress={() => addItem("bs_sprint")} />
-      );
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+drill" label="+ Drill" onPress={() => addItem("fb_drill")} />);
+      rowBtns.push(<Button key="+spr" label="+ Sprints" onPress={() => addItem("fb_sprint")} />);
     } else if (m === "soccer") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
-      row1.push(
-        <Button key="+drib" label="+ Dribbling" onPress={() => addItem("sc_dribble")} flex={1} />
-      );
-      row2.push(
-        <Button key="+shoot" label="+ Shooting" onPress={() => addItem("sc_shoot")} />
-      );
-      row2.push(
-        <Button key="+pass" label="+ Passing" onPress={() => addItem("sc_pass")} />
-      );
-      row2.push(
-        <Button key="+spr" label="+ Sprints" onPress={() => addItem("sc_sprint")} />
-      );
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+drill" label="+ Drill" onPress={() => addItem("sc_drill")} />);
+      rowBtns.push(<Button key="+shoot" label="+ Shooting" onPress={() => addItem("sc_shoot")} />);
+    } else if (m === "baseball") {
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+hit" label="+ Hitting" onPress={() => addItem("bs_hit")} />);
+      rowBtns.push(<Button key="+field" label="+ Fielding" onPress={() => addItem("bs_field")} />);
     } else if (m === "hockey") {
-      row1.push(
-        <View key="nameWrap" style={{ flex: 1 }}>
-          {nameBox}
-        </View>
-      );
-      row1.push(
-        <Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} flex={1} />
-      );
-      row2.push(
-        <Button key="+shoot" label="+ Shooting" onPress={() => addItem("hk_shoot")} flex={0.6} />
-      );
-      row2.push(
-        <Button key="+skate" label="+ Skating" onPress={() => addItem("hk_skate")} flex={0.6} />
-      );
-      row2.push(
-        <Button key="+stick" label="+ Stickhandling" onPress={() => addItem("hk_stick")} flex={0.8} />
-      );
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+drill" label="+ Drill" onPress={() => addItem("hk_drill")} />);
+      rowBtns.push(<Button key="+shoot" label="+ Shooting" onPress={() => addItem("hk_shoot")} />);
+    } else if (m === "tennis") {
+      rowBtns.push(<Button key="+ex" label="+ Exercise" onPress={() => addItem("exercise")} />);
+      rowBtns.push(<Button key="+drill" label="+ Drill" onPress={() => addItem("tn_drill")} />);
+      rowBtns.push(<Button key="+rally" label="+ Rally" onPress={() => addItem("tn_rally")} />);
     }
 
     return (
       <>
-        <View style={styles.row}>{row1}</View>
-        {row2.length > 0 && <View style={[styles.row, { marginTop: 8 }]}>{row2}</View>}
+        <View style={{ marginTop: 8 }}>{nameRow}</View>
+        <View style={[styles.row, { marginTop: 8 }]}>{rowBtns}</View>
       </>
     );
   };
+
+  if (!fontsReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg0, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: "padding", android: undefined })}
       style={{ flex: 1, backgroundColor: theme.colors.bg0 }}
     >
-      {/* Header */}
+      {/* Header (centered title, right sport icon) */}
       <View style={{ paddingHorizontal: theme.layout.xl, paddingTop: theme.layout.lg, marginTop: 30 }}>
-      <AppHeader title="Workouts" icon={({lifting:{lib:"ion",name:"barbell-outline"},basketball:{lib:"ion",name:"basketball-outline"},running:{lib:"ion",name:"walk-outline"},football:{lib:"ion",name:"american-football-outline"},soccer:{lib:"ion",name:"football-outline"},baseball:{lib:"ion",name:"baseball-outline"},hockey:{lib:"ion",name:"time"}} as const)[m]} />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          {/* left spacer keeps title centered */}
+          <View style={{ width: 48, height: 48 }} />
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text style={styles.header}>Workouts</Text>
+            <View style={styles.headerUnderline} />
+          </View>
+          <RightIcon />
+        </View>
         <Toolbar />
       </View>
 
@@ -674,7 +572,7 @@ export default function WorkoutsScreen() {
       >
         {/* Non-running: full-width cards */}
         {m !== "running" &&
-          list.map((item: AnyItem) => (
+          list.map((item) => (
             <FullWidthCard
               key={item.id}
               item={item}
@@ -685,7 +583,7 @@ export default function WorkoutsScreen() {
             />
           ))}
 
-        {/* Running */}
+        {/* Running section */}
         {m === "running" && (
           <RunningSection
             runState={runState}
@@ -708,7 +606,7 @@ export default function WorkoutsScreen() {
       {m !== "running" && isCreating && (
         <View style={styles.stickySaveWrap}>
           <Pressable onPress={saveWorkout} style={styles.bigSaveBtn}>
-            <Text style={styles.bigSaveText}>Save Workout</Text>
+            <Text style={[styles.bigSaveText, { fontFamily: FONT.displayBold }]}>Save Workout</Text>
           </Pressable>
         </View>
       )}
@@ -716,7 +614,7 @@ export default function WorkoutsScreen() {
   );
 }
 
-/* ---------- Full width "square" (card) with wrap sets ---------- */
+/* ================= Card (square) ================= */
 function FullWidthCard({
   item,
   onRemove,
@@ -732,21 +630,27 @@ function FullWidthCard({
 }) {
   const fields = FIELD_SETS[item.kind];
 
-  // basketball shot % per-set (show to the right of the set)
+  // shot % (basketball)
   const pctFor = (s: SetRecord) => {
     const a = parseInt(s.attempted || "0", 10) || 0;
-    const made = parseInt(s.made || "0", 10) || 0;
-    return a > 0 ? Math.round((made / a) * 100) : null;
+    const m = parseInt(s.made || "0", 10) || 0;
+    return a > 0 ? Math.round((m / a) * 100) : null;
   };
 
   return (
     <View style={styles.card}>
-      {/* header: name + remove */}
+      {/* cut-in name row */}
       <View style={styles.cardHeader}>
         <TextInput
           value={item.name}
           onChangeText={onName}
-          placeholder={item.kind === "exercise" ? "Exercise name…" : "Drill name…"}
+          placeholder={
+            item.kind === "exercise"
+              ? "Exercise name…"
+              : item.kind.endsWith("_drill")
+              ? "Drill name…"
+              : "Name…"
+          }
           placeholderTextColor={theme.colors.textLo}
           style={styles.cardName}
         />
@@ -755,47 +659,67 @@ function FullWidthCard({
         </Pressable>
       </View>
 
-      {/* sets grid (target 4–5 per row; wraps automatically) */}
+      {/* Set+ chip */}
+      <Pressable onPress={onAddSet} style={styles.setChip}>
+        <Text style={[styles.setChipText, { fontFamily: FONT.uiSemi }]}>Set +</Text>
+      </Pressable>
+
+      {/* sets in 2 columns */}
       <View style={styles.setGrid}>
-        {item.sets.map((s: SetRecord, idx: number) => (
+        {item.sets.map((s, idx) => (
           <View key={idx} style={styles.setTile}>
-            <Text style={styles.setBadge}>Set {idx + 1}</Text>
+            <Text style={[styles.setBadge, { fontFamily: FONT.displayMed }]}>Set {idx + 1}</Text>
 
             {fields.map((f) => (
-              <TextInput
+              <AngledInput
                 key={f.key}
-                value={s[f.key] ?? ""}
-                onChangeText={(t) =>
-                  onChange(idx, f.key, f.numeric ? t.replace(/[^\d.]/g, "") : t)
-                }
                 placeholder={f.label}
-                placeholderTextColor={theme.colors.textLo}
+                value={s[f.key] ?? ""}
+                onChangeText={(t) => onChange(idx, f.key, f.numeric ? t.replace(/[^\d.]/g, "") : t)}
                 keyboardType={f.numeric ? "numeric" : "default"}
-                style={styles.inputMini}
               />
             ))}
 
-            {/* basketball shot % to the right (inside tile) */}
             {item.kind === "bb_shot" && (
-              <Text style={styles.shotPct}>
-                {(() => {
-                  const pct = pctFor(s);
-                  return pct == null ? "—" : `${pct}%`;
-                })()}
-              </Text>
+              <Text style={styles.shotPct}>{(() => {
+                const p = pctFor(s);
+                return p == null ? "—" : `${p}%`;
+              })()}</Text>
             )}
           </View>
         ))}
-
-        <Pressable onPress={onAddSet} style={styles.setPlusBtn}>
-          <Text style={styles.setPlusText}>Set +</Text>
-        </Pressable>
       </View>
     </View>
   );
 }
 
-/* ---------- Running section (taller map) ---------- */
+/* Angled / “Tennessee” input: skewed wrapper + counter-skewed TextInput so text is straight */
+function AngledInput({
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder: string;
+  keyboardType?: "default" | "numeric";
+}) {
+  return (
+    <View style={styles.angledWrap}>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={theme.colors.textLo}
+        keyboardType={keyboardType}
+        style={styles.angledInput}
+      />
+    </View>
+  );
+}
+
+/* ================= Running section ================= */
 function RunningSection(props: {
   runState: "idle" | "tracking" | "paused" | "finished";
   region: Region;
@@ -840,21 +764,13 @@ function RunningSection(props: {
           >
             {points.length >= 2 && (
               <Polyline
-                coordinates={points.map((p: Pt) => ({
-                  latitude: p.lat,
-                  longitude: p.lon,
-                }))}
+                coordinates={points.map((p) => ({ latitude: p.lat, longitude: p.lon }))}
                 strokeColor={theme.colors.primary600}
                 strokeWidth={4}
               />
             )}
             {points.length > 0 && (
-              <Marker
-                coordinate={{
-                  latitude: points[points.length - 1].lat,
-                  longitude: points[points.length - 1].lon,
-                }}
-              />
+              <Marker coordinate={{ latitude: points[points.length - 1].lat, longitude: points[points.length - 1].lon }} />
             )}
           </MapView>
         </View>
@@ -863,11 +779,7 @@ function RunningSection(props: {
       {runState !== "idle" && (
         <View style={[styles.card, { padding: 12, gap: 10 }]}>
           <Text style={{ color: theme.colors.textLo, textAlign: "center" }}>
-            {runState === "tracking"
-              ? "Running"
-              : runState === "paused"
-              ? "Paused"
-              : "Finished"}
+            {runState === "tracking" ? "Running" : runState === "paused" ? "Paused" : "Finished"}
           </Text>
 
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -894,68 +806,33 @@ function RunningSection(props: {
 
           {runState === "tracking" && (
             <View style={styles.ctrlRow}>
-              <Pressable
-                onPress={pauseRun}
-                style={[styles.ctrlBtn, styles.ctrlHollow]}
-              >
+              <Pressable onPress={pauseRun} style={[styles.ctrlBtn, styles.ctrlHollow]}>
                 <Text style={[styles.ctrlText, { color: theme.colors.textHi }]}>Pause</Text>
               </Pressable>
-              <Pressable
-                onPress={endRun}
-                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
-              >
+              <Pressable onPress={endRun} style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}>
                 <Text style={[styles.ctrlText, { color: "#fff" }]}>End Run</Text>
               </Pressable>
             </View>
           )}
           {runState === "paused" && (
             <View style={styles.ctrlRow}>
-              <Pressable
-                onPress={resumeRun}
-                style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}
-              >
-                <Text style={[styles.ctrlText, { color: "#052d1b" }]}>
-                  Resume
-                </Text>
+              <Pressable onPress={resumeRun} style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}>
+                <Text style={[styles.ctrlText, { color: "#052d1b" }]}>Resume</Text>
               </Pressable>
-              <Pressable
-                onPress={endRun}
-                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
-              >
+              <Pressable onPress={endRun} style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}>
                 <Text style={[styles.ctrlText, { color: "#fff" }]}>End Run</Text>
               </Pressable>
             </View>
           )}
           {runState === "finished" && (
             <View style={styles.ctrlRow}>
-              <Pressable
-                onPress={saveRun}
-                style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}
-              >
-                <Text style={[styles.ctrlText, { color: "#052d1b" }]}>
-                  Save Run
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={resumeRun}
-                style={[styles.ctrlBtn, { backgroundColor: theme.colors.danger }]}
-              >
-                <Text style={[styles.ctrlText, { color: "#fff" }]}>
-                  Resume Run
-                </Text>
+              <Pressable onPress={saveRun} style={[styles.ctrlBtn, { backgroundColor: theme.colors.primary600 }]}>
+                <Text style={[styles.ctrlText, { color: "#052d1b" }]}>Save Run</Text>
               </Pressable>
             </View>
           )}
 
-          <Text
-            style={{
-              color: theme.colors.textHi,
-              textAlign: "center",
-              fontSize: 24,
-              fontWeight: "900",
-              marginTop: 4,
-            }}
-          >
+          <Text style={{ color: theme.colors.textHi, textAlign: "center", fontSize: 24, fontFamily: FONT.displayBold, marginTop: 4 }}>
             Time: {timeStr(elapsed)}
           </Text>
         </View>
@@ -964,18 +841,46 @@ function RunningSection(props: {
   );
 }
 
-/* ----------------------------------------------------------------------------
+/* ============================================================================
    Styles
----------------------------------------------------------------------------- */
+============================================================================ */
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  /* header */
+  header: {
+    color: theme.colors.textHi,
+    fontSize: 28,
+    letterSpacing: 0.2,
+    fontFamily: FONT.displayBold, // Font 3
+  },
+  headerUnderline: {
+    height: 3,
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 999,
+    marginTop: 6,
+  },
+  iconPill: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface1,
+    borderColor: theme.colors.strokeSoft,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.soft,
+  },
 
+  /* toolbar */
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
   addWorkoutBtn: {
     backgroundColor: theme.colors.primary600,
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: "center",
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#0e3c24",
   },
   addWorkoutText: { color: "#052d1b", fontWeight: "900", fontSize: 16 },
 
@@ -983,16 +888,16 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface1,
     color: theme.colors.textHi,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.strokeSoft,
   },
   topBtn: {
     backgroundColor: "#0b1a13",
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.primary600,
     alignItems: "center",
@@ -1000,6 +905,7 @@ const styles = StyleSheet.create({
   },
   topBtnText: { color: theme.colors.primary600, fontWeight: "800" },
 
+  /* sticky save */
   stickySaveWrap: {
     position: "absolute",
     left: 0,
@@ -1009,15 +915,15 @@ const styles = StyleSheet.create({
   },
   bigSaveBtn: {
     backgroundColor: theme.colors.primary600,
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#0e3c24",
   },
-  bigSaveText: { color: "#052d1b", fontWeight: "900", fontSize: 18 },
+  bigSaveText: { color: "#052d1b", fontSize: 18 },
 
-  /* Card */
+  /* card */
   card: {
     backgroundColor: theme.colors.surface1,
     borderRadius: theme.radii.lg,
@@ -1031,64 +937,84 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    backgroundColor: "#0E1216",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 8,
   },
   cardName: {
     flex: 1,
-    backgroundColor: theme.colors.surface2,
     color: theme.colors.textHi,
-    paddingHorizontal: theme.layout.lg,
-    paddingVertical: theme.layout.sm,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.strokeSoft,
-    ...theme.text.title,
+    fontWeight: "800",
   },
 
+  /* Set+ chip */
+  setChip: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "#0A0F12",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  setChipText: {
+    color: theme.colors.textHi,
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
+
+  /* sets */
   setGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    alignItems: "flex-start",
+    columnGap: 10,
+    rowGap: 10,
   },
   setTile: {
     backgroundColor: "#0C1016",
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.strokeSoft,
-    padding: 10,
-    flexBasis: "23%",
-    minWidth: 120,
+    padding: 12,
+    flexBasis: "48%", // 2 per row
+    minWidth: 150,
     position: "relative",
   },
-  setBadge: { color: theme.colors.textLo, fontSize: 11, fontWeight: "800", marginBottom: 6 },
-  inputMini: {
-    backgroundColor: "#0E141C",
+  setBadge: {
     color: theme.colors.textHi,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.strokeSoft,
-    marginBottom: 6,
+    marginBottom: 8,
+    fontSize: 14,
   },
   shotPct: {
     position: "absolute",
-    right: 8,
-    top: 8,
+    right: 10,
+    top: 10,
     color: theme.colors.primary600,
     fontWeight: "900",
     fontSize: 12,
   },
-  setPlusBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+
+  /* angled inputs */
+  angledWrap: {
+    transform: [{ skewX: "-12deg" }],
+    backgroundColor: "#0E141C",
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.strokeSoft,
-    backgroundColor: "#0B121A",
+    marginBottom: 8,
+    overflow: "hidden",
   },
-  setPlusText: { color: theme.colors.textHi, fontWeight: "800" },
+  angledInput: {
+    transform: [{ skewX: "12deg" }],
+    color: theme.colors.textHi,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
 
   /* Running cards */
   metric: {
@@ -1114,6 +1040,7 @@ const styles = StyleSheet.create({
   ctrlHollow: { borderWidth: 1, borderColor: theme.colors.strokeSoft, backgroundColor: "#0B121A" },
   ctrlText: { fontWeight: "900" },
 });
+
 
 
 
