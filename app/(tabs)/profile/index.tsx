@@ -242,7 +242,11 @@ export default function Profile() {
           style={styles.btnRow}
           /* CHANGE (SPACING): btnRow.marginTop is space above buttons; marginBottom is space below buttons */
         >
-          <Pressable style={[styles.pillBtn, styles.pillSolid]} onPress={() => router.push("./edit")}>
+          <Pressable
+            style={[styles.pillBtn, styles.pillSolid]}
+            // ***** ONLY CHANGE: use absolute path so the route is guaranteed to resolve
+            onPress={() => router.push("/(tabs)/profile/edit")}
+          >
             <Text style={[styles.pillText, { color: TEXT }]}>Edit Profile</Text>
           </Pressable>
           <Pressable style={[styles.pillBtn, styles.pillSolid]} onPress={addHighlight}>
@@ -347,7 +351,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "900",
     textAlign: "center",
-    fontFamily: FONT.displayBold,
+    fontFamily: "Geist_800ExtraBold",
   },
   headerRule: {
     height: 3,
@@ -492,6 +496,7 @@ const styles = StyleSheet.create({
   },
   hintText: { color: "#FFF", opacity: 0.9, fontSize: 14, marginBottom: 2 },
 });
+
 
 
 

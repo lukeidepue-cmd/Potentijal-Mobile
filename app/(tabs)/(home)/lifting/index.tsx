@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textHi,
     fontSize: 28,
     letterSpacing: 0.2,
-    fontFamily: FONT.displayBold, // Space Grotesk
+    fontFamily: "Geist_800ExtraBold", // Space Grotesk
   },
   headerUnderline: {
     height: 3,

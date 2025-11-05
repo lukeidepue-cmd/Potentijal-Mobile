@@ -1,4 +1,3 @@
-// app/(tabs)/meals/index.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   SafeAreaView,
@@ -8,12 +7,12 @@ import {
   ScrollView,
   TextInput,
   StyleSheet,
-  TouchableOpacity,
   LayoutChangeEvent,
   ActivityIndicator,
   Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../constants/theme";
 import {
   MEAL_TYPES,
@@ -24,7 +23,7 @@ import {
 } from "../../../providers/MealsContext";
 import Svg, { G, Line as SvgLine, Path, Circle, Text as SvgText } from "react-native-svg";
 
-/* ---------------- Fonts (same setup as Basketball) ---------------- */
+/* Fonts */
 import {
   useFonts as useGeist,
   Geist_400Regular,
@@ -40,172 +39,111 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 
 const FONT = {
-  // Font 2 = Geist family
   uiRegular: "Geist_400Regular",
   uiMedium: "Geist_500Medium",
   uiSemi: "Geist_600SemiBold",
   uiBold: "Geist_700Bold",
   uiXBold: "Geist_800ExtraBold",
-  // Font 3 = Space Grotesk
   displayMed: "SpaceGrotesk_600SemiBold",
   displayBold: "SpaceGrotesk_700Bold",
 };
 
-/* ---------------- Colors ---------------- */
 const TEXT = theme.colors.textHi;
 const DIM = theme.colors.textLo;
 const STROKE = theme.colors.strokeSoft;
 const GREEN = theme.colors.primary600;
 const CARD = theme.colors.surface1;
 
-const ORANGE_BG = "#FFC970";
-const ORANGE_BORDER = "#D48B1B";
-const ORANGE_TEXT = "#2f1a00";
-const ORANGE_INPUT_BG = "#FFE6BF";
-const ORANGE_BUTTON_BG = "#FFDCA3";
+/* Helpers */
+type MacroKey = "calories" | "protein" | "carbs" | "fat" | "sugar" | "sodium";
+type RangeKey = "7d" | "30d" | "90d" | "180d" | "360d";
 
-/* ---------------- Helpers: dates, ticks, series ---------------- */
-type MacroKey = "calories" | "protein" | "carbs" | "fat" | "sugar";
-type RangeKey = "7d" | "30d" | "90d" | "180d";
-
-const day = (n: number) => {
+const daysAgo = (n: number) => {
   const d = new Date();
-  d.setDate(d.getDate() + n);
+  d.setDate(d.getDate() - n);
   return d;
 };
-const daysAgo = (n: number) => day(-n);
 const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 const yearOnly = (d: Date) => `${d.getFullYear()}`;
 
 function binsFor(range: RangeKey) {
   switch (range) {
-    case "7d":
-      return { bins: 7, stepDays: 1 };
-    case "30d":
-      return { bins: 4, stepDays: 7 };
-    case "90d":
-      return { bins: 6, stepDays: 14 };
-    case "180d":
-      return { bins: 6, stepDays: 30 };
+    case "7d": return { bins: 7, stepDays: 1 };
+    case "30d": return { bins: 4, stepDays: 7 };
+    case "90d": return { bins: 6, stepDays: 14 };
+    case "180d": return { bins: 6, stepDays: 30 };
+    case "360d": return { bins: 6, stepDays: 60 };
   }
 }
-
 function mockAverageFor(macro: MacroKey) {
   switch (macro) {
-    case "calories":
-      return 2400;
-    case "protein":
-      return 120;
-    case "carbs":
-      return 260;
-    case "fat":
-      return 75;
-    case "sugar":
-      return 60;
+    case "calories": return 2400;
+    case "protein":  return 120;
+    case "carbs":    return 260;
+    case "fat":      return 75;
+    case "sugar":    return 60;
+    case "sodium":   return 2000;
   }
 }
 const randomNear = (avg: number, spread: number) =>
   Math.max(0, Math.round(avg + (Math.random() * 2 - 1) * spread));
 
 type Point = { x: number; y: number; date: Date };
-
 function generateSeries(macro: MacroKey, range: RangeKey): { data: Point[]; avg: number } {
   const { bins, stepDays } = binsFor(range);
   const avg = mockAverageFor(macro);
   const spread = Math.max(6, Math.round(avg * 0.12));
   const data: Point[] = Array.from({ length: bins }).map((_, i) => {
-    const idxFromLeft = i;
-    const daysBack = (bins - 1 - idxFromLeft) * stepDays;
+    const daysBack = (bins - 1 - i) * stepDays;
     return { x: i + 1, y: randomNear(avg, spread), date: daysAgo(daysBack) };
   });
   return { data, avg };
 }
-
 function yTicksFrom(avg: number) {
   const step = Math.max(1, Math.round(avg * 0.05));
   const arr = [
-    avg - step * 4,
-    avg - step * 3,
-    avg - step * 2,
-    avg - step,
-    avg,
-    avg + step,
-    avg + step * 2,
-    avg + step * 3,
-    avg + step * 4,
+    avg - step * 4, avg - step * 3, avg - step * 2, avg - step,
+    avg, avg + step, avg + step * 2, avg + step * 3, avg + step * 4,
   ].map((n) => Math.max(0, n));
   return Array.from(new Set(arr)).sort((a, b) => a - b);
 }
 
-/* ---------------- Interval chip (ONLY change: Font 2) ---------------- */
-function IntervalChip({
+/* Small dropdown pill */
+function Drop({
   label,
-  active,
+  open,
   onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+}: { label: string; open: boolean; onPress: () => void }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.chip,
-        active && { borderColor: theme.colors.primary600, backgroundColor: "#0E1316" },
-      ]}
-    >
-      <Text
-        style={[
-          styles.chipText,
-          { fontFamily: FONT.uiSemi }, // <-- Font 2 (Geist SemiBold)
-          active && { color: theme.colors.primary600 },
-        ]}
-      >
-        {label}
-      </Text>
+    <Pressable onPress={onPress} style={[styles.dropdown, open && styles.dropdownActive]}>
+      <Text style={styles.dropdownText}>{label}</Text>
+      <Text style={{ color: open ? theme.colors.primary600 : theme.colors.textHi }}>▾</Text>
     </Pressable>
   );
 }
 
-/* ---------------- Screen ---------------- */
 export default function MealsHome() {
-  // fonts
   const [geistLoaded] = useGeist({
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-    Geist_800ExtraBold,
+    Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold, Geist_800ExtraBold,
   });
-  const [sgLoaded] = useSpaceGrotesk({
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
+  const [sgLoaded] = useSpaceGrotesk({ SpaceGrotesk_600SemiBold, SpaceGrotesk_700Bold });
   const fontsReady = geistLoaded && sgLoaded;
 
   const router = useRouter();
-  const params = useLocalSearchParams<{ add?: string }>();
+  const params = useLocalSearchParams<{ add?: string; to?: MealType }>();
 
   const {
-    meals,
-    totalsFor,
-    entryTotals,
-    removeFood,
-    addFood,
-    burnedCalories,
-    setBurnedCalories,
-    dayCalories,
-    netCalories,
+    meals, totalsFor, entryTotals, addFood,
+    burnedCalories, setBurnedCalories, dayCalories, netCalories,
   } = useMeals();
 
-  // Incoming from Scan
+  // ingest scanned item
   const [incoming, setIncoming] = useState<Food | null>(null);
   useEffect(() => {
     if (params.add) {
       try {
         const parsed = JSON.parse(decodeURIComponent(params.add));
-        const asFood: Food = {
+        const asFood = ({
           name: parsed.name ?? "Food item",
           brand: parsed.brand ?? undefined,
           barcode: parsed.barcode ?? undefined,
@@ -214,16 +152,22 @@ export default function MealsHome() {
           protein: parsed.protein ?? null,
           carbs: parsed.carbs ?? null,
           fat: parsed.fat ?? null,
-          fiber: parsed.fiber ?? null,
           sugar: parsed.sugar ?? null,
           sodium: parsed.sodium ?? null,
           source: "barcode",
-        };
-        setIncoming(asFood);
+          servingPct: parsed.servingPct ?? 100,
+        } as Food & { servingPct?: number });
+
+        const target = params.to;
+        if (target && (MEAL_TYPES as readonly MealType[]).includes(target)) {
+          addFood(target, { ...asFood, id: undefined } as Food);
+        } else {
+          setIncoming(asFood as Food);
+        }
       } catch {}
       router.replace("/(tabs)/meals");
     }
-  }, [params.add, router]);
+  }, [params.add, params.to, router, addFood]);
 
   const addIncomingTo = (meal: MealType) => {
     if (!incoming) return;
@@ -231,7 +175,7 @@ export default function MealsHome() {
     setIncoming(null);
   };
 
-  // Burned calories
+  // burned cals
   const [burnEdit, setBurnEdit] = useState<string>("");
   useEffect(() => setBurnEdit(String(burnedCalories || "")), [burnedCalories]);
   const commitBurn = () => {
@@ -239,15 +183,22 @@ export default function MealsHome() {
     setBurnedCalories(Number.isFinite(n) ? n : 0);
   };
 
-  // Day totals (incl. sugar)
+  // day totals (robust sugar/sodium)
   const dayTotals = useMemo(() => {
-    const scale = (v: number | null | undefined, pct: number | undefined) =>
+    const scalePct = (v: number | null | undefined, pct: number | undefined) =>
       v == null ? 0 : Math.round((v * (pct ?? 100)) / 100);
-    let calories = 0,
-      protein = 0,
-      carbs = 0,
-      fat = 0,
-      sugar = 0;
+
+    const getSugar = (e: any) =>
+      e?.sugar ?? e?.sugars ?? e?.added_sugars ?? 0;
+
+    const getSodium = (e: any) => {
+      if (e?.sodium != null) return e.sodium;               // g
+      if (e?.sodium_mg != null) return e.sodium_mg / 1000;  // mg -> g
+      if (e?.salt != null) return e.salt / 2.5;             // salt -> sodium
+      return 0;
+    };
+
+    let calories = 0, protein = 0, carbs = 0, fat = 0, sugar = 0, sodium = 0;
     for (const m of MEAL_TYPES) {
       for (const e of meals[m]) {
         const t = entryTotals(e);
@@ -255,47 +206,36 @@ export default function MealsHome() {
         protein += t.protein;
         carbs += t.carbs;
         fat += t.fat;
-        sugar += scale((e as FoodEntry).sugar ?? 0, (e as FoodEntry).servingPct);
+        sugar  += scalePct(getSugar(e as any), (e as FoodEntry).servingPct);
+        sodium += scalePct(getSodium(e as any), (e as FoodEntry).servingPct);
       }
     }
-    return { calories, protein, carbs, fat, sugar };
+    return { calories, protein, carbs, fat, sugar, sodium };
   }, [meals, entryTotals]);
 
-  const GOAL = { calories: 2500, protein: 160, carbs: 400, fat: 90, sugar: 80 };
+  const GOAL = { calories: 2500, protein: 160, carbs: 400, fat: 90, sugar: 80, sodium: 2300 };
 
-  // Chart state
-  const [macroQuery, setMacroQuery] = useState("");
+  // graph
   const [macro, setMacro] = useState<MacroKey>("calories");
   const [range, setRange] = useState<RangeKey>("7d");
-
-  useEffect(() => {
-    const q = macroQuery.trim().toLowerCase();
-    if (!q) return;
-    if (q.startsWith("pro")) setMacro("protein");
-    else if (q.startsWith("car")) setMacro("carbs");
-    else if (q.startsWith("fat")) setMacro("fat");
-    else if (q.startsWith("sug")) setMacro("sugar");
-    else if (q.startsWith("cal")) setMacro("calories");
-  }, [macroQuery]);
+  const [openMacro, setOpenMacro] = useState(false);
+  const [openRange, setOpenRange] = useState(false);
 
   const { data: series, avg } = useMemo(() => generateSeries(macro, range), [macro, range]);
   const yTicks = useMemo(() => yTicksFrom(avg), [avg]);
   const yMin = yTicks[0];
   const yMax = yTicks[yTicks.length - 1];
 
-  // Chart layout (no interactivity)
   const [w, setW] = useState(0);
   const H = 240;
   const M = { top: 10, bottom: 38, left: 40, right: 18 };
   const innerW = Math.max(0, w - M.left - M.right);
   const innerH = H - M.top - M.bottom;
-
   const onLayoutChart = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
   const xFor = (i: number) => M.left + (series.length <= 1 ? 0 : (i * innerW) / (series.length - 1));
   const yFor = (val: number) => M.top + innerH - (innerH * (val - yMin)) / Math.max(1, yMax - yMin);
-
   const linePath = useMemo(() => {
-    if (series.length === 0) return "";
+    if (!series.length) return "";
     return series.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(p.y)}`).join(" ");
   }, [series, w, yMin, yMax]);
 
@@ -309,7 +249,7 @@ export default function MealsHome() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg0 }}>
-      {/* Header (Font 3 already set earlier; unchanged) */}
+      {/* Header */}
       <View style={{ alignItems: "center", marginTop: 32, paddingHorizontal: theme.layout.xl }}>
         <Text style={styles.headerMeals}>Meals</Text>
         <View style={styles.headerUnderline} />
@@ -320,18 +260,27 @@ export default function MealsHome() {
         contentContainerStyle={{ padding: theme.layout.lg, paddingBottom: theme.layout.xxl }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ===== Meals list ===== */}
-        {MEAL_TYPES.map((meal) => {
+        {/* Scan button */}
+        <Pressable
+          onPress={() => router.push("/(tabs)/meals/scan")}
+          style={styles.scanBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Scan Barcode"
+        >
+          <Ionicons name="barcode-outline" size={32} color={theme.colors.textHi} />
+          <Text style={styles.scanBtnText}>Scan Barcode</Text>
+        </Pressable>
+
+        {/* Meals list */}
+        {MEAL_TYPES.map((meal, i) => {
           const total = totalsFor(meal).calories;
           return (
-            <View key={meal} style={{ marginTop: theme.layout.lg }}>
+            <View key={meal} style={{ marginTop: i === 0 ? 18 : theme.layout.lg }}>
               <Pressable
                 onPress={() => router.push({ pathname: "/(tabs)/meals/search", params: { meal } })}
                 style={styles.mealBar}
               >
-                {/* CHANGED: label now Font 2 (Geist SemiBold) */}
                 <Text style={[styles.mealBarText, { fontFamily: FONT.uiSemi }]}>+ Add to {meal}</Text>
-                {/* keep green number as Font 3 (Space Grotesk) */}
                 <Text style={[styles.mealBarKcal, { fontFamily: FONT.displayBold }]}>{total}</Text>
               </Pressable>
 
@@ -351,7 +300,7 @@ export default function MealsHome() {
                         }
                         style={styles.itemRow}
                       >
-                        <Text style={styles.itemName}>
+                        <Text style={styles.itemName} numberOfLines={2}>
                           – {e.name}
                           {portion}
                         </Text>
@@ -370,7 +319,7 @@ export default function MealsHome() {
           );
         })}
 
-        {/* ===== Burned Calories ===== */}
+        {/* Burned calories */}
         <View style={{ marginTop: 22 }}>
           <View style={styles.burnBar}>
             <Text style={[styles.burnText, { fontFamily: FONT.displayBold }]}>+ Burned Calories</Text>
@@ -381,11 +330,11 @@ export default function MealsHome() {
                 onBlur={commitBurn}
                 keyboardType="numeric"
                 placeholder="0"
-                placeholderTextColor={ORANGE_TEXT + "AA"}
+                placeholderTextColor={"#2f1a00AA"}
                 style={styles.burnInput}
               />
               <Pressable onPress={commitBurn} style={styles.burnSave}>
-                <Text style={{ color: ORANGE_TEXT, fontFamily: FONT.displayBold }}>Save</Text>
+                <Text style={{ color: "#2f1a00", fontFamily: FONT.displayBold }}>Save</Text>
               </Pressable>
             </View>
           </View>
@@ -396,90 +345,120 @@ export default function MealsHome() {
           </View>
         </View>
 
-        {/* ===== Macro Bars ===== */}
+        {/* Macro Bars (includes Sodium & Sugar) */}
         <View style={styles.barsCard}>
           <MacroBar label="Calories" color="#7CFF4F" value={dayTotals.calories} goal={GOAL.calories} />
-          <MacroBar label="Protein" color="#FF4C4C" value={dayTotals.protein} goal={GOAL.protein} />
-          <MacroBar label="Carbs" color="#6AA3FF" value={dayTotals.carbs} goal={GOAL.carbs} />
-          <MacroBar label="Fats" color="#FFE14E" value={dayTotals.fat} goal={GOAL.fat} />
-          <MacroBar label="Sugar" color="#C07CFF" value={dayTotals.sugar} goal={GOAL.sugar} />
+          <MacroBar label="Protein"  color="#FF4C4C" value={dayTotals.protein}  goal={GOAL.protein} />
+          <MacroBar label="Carbs"    color="#6AA3FF" value={dayTotals.carbs}    goal={GOAL.carbs} />
+          <MacroBar label="Fats"     color="#FFE14E" value={dayTotals.fat}      goal={GOAL.fat} />
+          <MacroBar label="Sugar"    color="#C07CFF" value={dayTotals.sugar}    goal={GOAL.sugar} />
+          <MacroBar label="Sodium"   color="#FFA64D" value={dayTotals.sodium}   goal={GOAL.sodium} />
         </View>
 
-        {/* ===== Progress ===== */}
+        {/* Progress graph */}
         <View style={styles.graphCard}>
           <Text style={styles.kicker}>Health</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}><Text style={styles.progressTitle}>Progress</Text></View>
-
-          {/* time chips — CHANGED to Font 2 via IntervalChip above */}
-          <View style={styles.intervalRow}>
-            {(["7d", "30d", "90d", "180d"] as RangeKey[]).map((key) => {
-              const label = key === "7d" ? "7 Days" : key === "30d" ? "30 Days" : key === "90d" ? "90 Days" : "180 Days";
-              return (
-                <IntervalChip key={key} label={label} active={range === key} onPress={() => setRange(key)} />
-              );
-            })}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+            <Text style={styles.progressTitle}>Progress</Text>
           </View>
 
-          {/* search (Font 1 / system) */}
-          <TextInput
-            value={macroQuery}
-            onChangeText={setMacroQuery}
-            placeholder="Search a Macro (e.g. Calories)…"
-            placeholderTextColor={theme.colors.textLo}
-            style={styles.search}
-          />
-
-          {/* chart (no interaction) */}
-          <View style={{ marginTop: 8 }}>
-            <View
-              onLayout={onLayoutChart}
-              style={{
-                height: H,
-                backgroundColor: "#0B121A",
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: STROKE,
-                overflow: "hidden",
-              }}
-            >
-              <Svg width="100%" height="100%">
-                <G>
-                  {yTicks.map((t, i) => {
-                    const y = yFor(t);
-                    return (
-                      <SvgLine key={`gy-${i}`} x1={M.left} x2={w - M.right} y1={y} y2={y} stroke="#16222c" strokeWidth={1} />
-                    );
-                  })}
-                  {yTicks.map((t, i) => {
-                    const y = yFor(t);
-                    return (
-                      <SvgText key={`gt-${i}`} x={M.left - 6} y={y + 3} fill="#8AA0B5" fontSize={10} textAnchor="end">
-                        {t}
-                      </SvgText>
-                    );
-                  })}
-                  {series.map((p, i) => {
-                    const x = xFor(i);
-                    const label = range === "180d" ? yearOnly(p.date) : md(p.date);
-                    return (
-                      <SvgText key={`xl-${i}`} x={x} y={H - 14} fill="#8AA0B5" fontSize={10} textAnchor="middle">
-                        {label}
-                      </SvgText>
-                    );
-                  })}
-                  <SvgLine x1={M.left} x2={w - M.right} y1={H - M.bottom} y2={H - M.bottom} stroke="#22303d" strokeWidth={1} />
-                  <SvgLine x1={M.left} x2={M.left} y1={M.top} y2={H - M.bottom} stroke="#22303d" strokeWidth={1} />
-                </G>
-
-                {linePath ? <Path d={linePath} fill="none" stroke={GREEN} strokeWidth={2} /> : null}
-
-                {series.map((p, i) => {
-                  const cx = xFor(i);
-                  const cy = yFor(p.y);
-                  return <Circle key={`pt-${i}`} cx={cx} cy={cy} r={4.5} stroke="#0a1a13" strokeWidth={2} fill={GREEN} />;
-                })}
-              </Svg>
+          {/* Two dropdowns */}
+          <View style={styles.dropRow}>
+            {/* Macro */}
+            <View style={{ flex: 1, position: "relative" }}>
+              <Drop
+                open={openMacro}
+                label={
+                  macro === "calories" ? "Calories" :
+                  macro === "protein"  ? "Protein"  :
+                  macro === "carbs"    ? "Carbs"    :
+                  macro === "fat"      ? "Fats"     :
+                  macro === "sugar"    ? "Sugar"    : "Sodium"
+                }
+                onPress={() => { setOpenMacro(v => !v); setOpenRange(false); }}
+              />
+              {openMacro && (
+                <View style={styles.menu}>
+                  {(["calories","protein","carbs","fat","sugar","sodium"] as MacroKey[]).map(k => (
+                    <Pressable key={k} onPress={() => { setMacro(k); setOpenMacro(false); }} style={styles.menuItem}>
+                      <Text style={styles.menuText}>
+                        {k === "calories" ? "Calories" : k === "protein" ? "Protein" : k === "carbs" ? "Carbs" :
+                         k === "fat" ? "Fats" : k === "sugar" ? "Sugar" : "Sodium"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
+
+            {/* Range */}
+            <View style={{ flex: 1, position: "relative" }}>
+              <Drop
+                open={openRange}
+                label={range === "7d" ? "7 Days" : range === "30d" ? "30 Days" : range === "90d" ? "90 Days" : range === "180d" ? "180 Days" : "360 Days"}
+                onPress={() => { setOpenRange(v => !v); setOpenMacro(false); }}
+              />
+              {openRange && (
+                <View style={styles.menu}>
+                  {(["7d","30d","90d","180d","360d"] as RangeKey[]).map(k => (
+                    <Pressable key={k} onPress={() => { setRange(k); setOpenRange(false); }} style={styles.menuItem}>
+                      <Text style={styles.menuText}>
+                        {k === "7d" ? "7 Days" : k === "30d" ? "30 Days" : k === "90d" ? "90 Days" : k === "180d" ? "180 Days" : "360 Days"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* chart */}
+          <View
+            onLayout={onLayoutChart}
+            style={{
+              height: 240,
+              backgroundColor: "#0B121A",
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: STROKE,
+              overflow: "hidden",
+            }}
+          >
+            <Svg width="100%" height="100%">
+              <G>
+                {yTicks.map((t, i) => {
+                  const y = yFor(t);
+                  return (
+                    <SvgLine key={`gy-${i}`} x1={M.left} x2={w - M.right} y1={y} y2={y} stroke="#16222c" strokeWidth={1} />
+                  );
+                })}
+                {yTicks.map((t, i) => {
+                  const y = yFor(t);
+                  return (
+                    <SvgText key={`gt-${i}`} x={M.left - 6} y={y + 3} fill="#8AA0B5" fontSize={10} textAnchor="end">
+                      {t}
+                    </SvgText>
+                  );
+                })}
+                {series.map((p, i) => {
+                  const x = xFor(i);
+                  const label = range === "180d" || range === "360d" ? yearOnly(p.date) : md(p.date);
+                  return (
+                    <SvgText key={`xl-${i}`} x={x} y={240 - 14} fill="#8AA0B5" fontSize={10} textAnchor="middle">
+                      {label}
+                    </SvgText>
+                  );
+                })}
+                <SvgLine x1={M.left} x2={w - M.right} y1={240 - M.bottom} y2={240 - M.bottom} stroke="#22303d" strokeWidth={1} />
+                <SvgLine x1={M.left} x2={M.left} y1={M.top} y2={240 - M.bottom} stroke="#22303d" strokeWidth={1} />
+              </G>
+
+              {linePath ? <Path d={linePath} fill="none" stroke={GREEN} strokeWidth={2} /> : null}
+
+              {series.map((p, i) => (
+                <Circle key={`pt-${i}`} cx={xFor(i)} cy={yFor(p.y)} r={4.5} stroke="#0a1a13" strokeWidth={2} fill={GREEN} />
+              ))}
+            </Svg>
           </View>
         </View>
       </ScrollView>
@@ -508,18 +487,8 @@ export default function MealsHome() {
   );
 }
 
-/* ---------------- Macro Bar ---------------- */
-function MacroBar({
-  label,
-  color,
-  value,
-  goal,
-}: {
-  label: string;
-  color: string;
-  value: number;
-  goal: number;
-}) {
+/* Macro bar */
+function MacroBar({ label, color, value, goal }: { label: string; color: string; value: number; goal: number }) {
   const pct = Math.max(0, Math.min(1, goal > 0 ? value / goal : 0));
   return (
     <View style={{ marginBottom: 16 }}>
@@ -548,13 +517,13 @@ function MacroBar({
   );
 }
 
-/* ---------------- Styles ---------------- */
+/* Styles */
 const styles = StyleSheet.create({
   headerMeals: {
     color: theme.colors.textHi,
     fontSize: 28,
     letterSpacing: 0.2,
-    fontFamily: FONT.displayBold, // Font 3
+    fontFamily: "Geist_800ExtraBold",
   },
   headerUnderline: {
     height: 3,
@@ -563,6 +532,21 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 6,
   },
+
+  scanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: theme.radii.lg,
+    backgroundColor: "#0C1014",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    ...theme.shadow.soft,
+    marginTop: 6,
+  },
+  scanBtnText: { color: theme.colors.textHi, fontSize: 18, fontFamily: "Geist_700Bold" },
 
   mealBar: {
     backgroundColor: theme.colors.surface2,
@@ -596,7 +580,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#11202b",
   },
-  itemName: { color: TEXT, fontSize: 16, fontFamily: "Geist_400Regular" },
+  itemName: { color: TEXT, fontSize: 14, fontFamily: "Geist_400Regular" }, // slightly smaller to keep kcal + × visible
   kcalRight: { color: TEXT },
   removeBtn: {
     width: 24,
@@ -609,25 +593,26 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: DIM, fontStyle: "italic", fontFamily: "Geist_400Regular" },
 
+  // Burned calories
   burnBar: {
-    backgroundColor: ORANGE_BG,
+    backgroundColor: "#FFC970",
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: ORANGE_BORDER,
+    borderColor: "#D48B1B",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  burnText: { color: ORANGE_TEXT, fontSize: 16 },
+  burnText: { color: "#2f1a00", fontSize: 16 },
   burnInput: {
     minWidth: 64,
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 10,
-    backgroundColor: ORANGE_INPUT_BG,
-    color: ORANGE_TEXT,
+    backgroundColor: "#FFE6BF",
+    color: "#2f1a00",
     fontFamily: "Geist_800ExtraBold",
     textAlign: "center",
   },
@@ -635,9 +620,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: ORANGE_BUTTON_BG,
+    backgroundColor: "#FFDCA3",
     borderWidth: 1,
-    borderColor: ORANGE_BORDER,
+    borderColor: "#D48B1B",
   },
 
   summaryRow: {
@@ -676,53 +661,42 @@ const styles = StyleSheet.create({
     fontFamily: FONT.displayBold,
     marginBottom: 2,
   },
-  leftTick: {
-    width: 3,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    marginRight: 10,
-  },
   progressTitle: {
     color: "#FFFFFF",
     fontSize: 22,
     fontWeight: Platform.select({ ios: "800", android: "700" }) as any,
   },
 
-  /* CHIPS — size unchanged; text now Geist (Font 2) */
-  intervalRow: {
+  /* Dropdowns */
+  dropRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  dropdown: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 6,
-    marginBottom: 8,
-    paddingHorizontal: 2,
-  },
-  chip: {
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.18)",
+    gap: 6,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: 999,
     backgroundColor: "#0A0F12",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  chipText: {
-    color: theme.colors.textHi,
-    fontSize: 12,
-    letterSpacing: 0.2,
-  },
-
-  search: {
-    backgroundColor: "#0C1014",
-    color: theme.colors.textHi,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  dropdownActive: { borderColor: theme.colors.primary600, backgroundColor: "#0E1316" },
+  dropdownText: { color: theme.colors.textHi, fontSize: 12, letterSpacing: 0.2, fontFamily: FONT.uiSemi },
+  menu: {
+    position: "absolute",
+    top: 42, left: 0, right: 0,
+    backgroundColor: "#0E1216",
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
-    marginTop: 8,
-    marginBottom: 10,
+    overflow: "hidden",
+    zIndex: 20,
   },
+  menuItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  menuText: { color: theme.colors.textHi, fontSize: 12, fontFamily: FONT.uiSemi },
 
+  // Bottom sheet for incoming
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -750,6 +724,16 @@ const styles = StyleSheet.create({
   },
   sheetCancel: { alignSelf: "flex-end", padding: 8 },
 });
+
+
+
+
+
+
+
+
+
+
 
 
 

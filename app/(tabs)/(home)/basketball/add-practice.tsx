@@ -1,182 +1,152 @@
-// app/(tabs)/(home)/basketball/add-practice.tsx
 import React, { useState } from "react";
-import { SafeAreaView, View, Text, Pressable, TextInput, ScrollView } from "react-native";
+import { SafeAreaView, View, Text, Pressable, TextInput, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-
-import { Card } from "../../../../components/Card";           // <-- named export
-import { PrimaryButton } from "../../../../components/Button"; // <-- only what's used
 import { theme } from "../../../../constants/theme";
 
+/* --- Font 2 (Geist) for heading --- */
+import {
+  useFonts as useGeist,
+  Geist_700Bold,
+  Geist_800ExtraBold,
+} from "@expo-google-fonts/geist";
+
 export default function AddPracticeScreen() {
-  const [when, setWhen] = useState(new Date().toISOString().slice(0, 16).replace("T", " "));
-  const [focus, setFocus] = useState("");        // e.g., “Shooting”, “Defense”
-  const [location, setLocation] = useState("");  // Gym / Court
-  const [durationMin, setDurationMin] = useState(""); // minutes
+  const [geistLoaded] = useGeist({ Geist_700Bold, Geist_800ExtraBold });
+
+  const [when, setWhen] = useState("");
+  const [drills, setDrills] = useState("");
   const [notes, setNotes] = useState("");
 
   const save = () => {
     Haptics.selectionAsync();
-    // Persist later; for now just go back
     router.back();
   };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", padding: 16, gap: 8 }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={{
-            width: 40, height: 40, borderRadius: 10,
-            alignItems: "center", justifyContent: "center",
-            backgroundColor: "#0f1317", borderWidth: 1, borderColor: "#1a222b"
-          }}
-        >
-          <Ionicons name="chevron-back" size={20} color={theme.color.text} />
-        </Pressable>
-        <Text style={{ color: theme.color.text, fontSize: 20, fontWeight: "900" }}>Add Practice</Text>
+  if (!geistLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg0, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
       </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg0 }}>
+      {/* Back button */}
+      <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+        <Ionicons name="chevron-back" size={22} color={theme.colors.textHi} />
+      </Pressable>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Card>
-          <Text style={{ fontSize: 16, fontWeight: "900", color: "#111", marginBottom: 10 }}>
-            Practice Details
-          </Text>
+        {/* Heading + rule (match Edit Profile) */}
+        <Text style={styles.title}>Add Practice</Text>
+        <View style={styles.rule} />
 
-          <LabeledInput
-            label="When"
+        {/* Inputs – 4px between each */}
+        <View style={{ marginTop: 22 }}>
+          <TextInput
             value={when}
             onChangeText={setWhen}
-            placeholder="YYYY-MM-DD HH:mm"
+            placeholder="Date..."
+            placeholderTextColor={theme.colors.textLo}
+            style={styles.input}
           />
+        </View>
 
-          <LabeledInput
-            label="Focus"
-            value={focus}
-            onChangeText={setFocus}
-            placeholder="Shooting, Defense, Conditioning…"
+        <View style={{ marginTop: 18 }}>
+          <TextInput
+            value={drills}
+            onChangeText={setDrills}
+            placeholder="Drills..."
+            placeholderTextColor={theme.colors.textLo}
+            multiline
+            style={[styles.input, styles.inputBig]}
           />
+        </View>
 
-          <LabeledInput
-            label="Location"
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Gym / Court"
-          />
-
-          <LabeledNumber
-            label="Duration (min)"
-            value={durationMin}
-            onChangeText={setDurationMin}
-          />
-
-          <LabeledMultiline
-            label="Notes"
+        <View style={{ marginTop: 18 }}>
+          <TextInput
             value={notes}
             onChangeText={setNotes}
-            placeholder="Optional notes…"
+            placeholder="Notes..."
+            placeholderTextColor={theme.colors.textLo}
+            multiline
+            style={[styles.input, styles.inputBig]}
           />
+        </View>
 
-          <View style={{ alignItems: "flex-end", marginTop: 12 }}>
-            <PrimaryButton label="Save Practice" onPress={save} />
+        {/* Save (8px under last box) */}
+        <Pressable onPress={save} style={{ marginTop: 20, alignSelf: "flex-start" }}>
+          <View style={styles.saveBtn}>
+            <Text style={styles.saveText}>Save</Text>
           </View>
-        </Card>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function LabeledInput({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: "#111", fontWeight: "800", marginBottom: 6 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        style={{
-          borderWidth: 1, borderColor: "#e6e6e6", backgroundColor: "#fff", color: "#111",
-          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
-        }}
-      />
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 16,
+    marginTop: 16,
+  },
 
-function LabeledNumber({
-  label,
-  value,
-  onChangeText,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (t: string) => void;
-}) {
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: "#111", fontWeight: "800", marginBottom: 6 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={(t) => onChangeText(t.replace(/[^\d]/g, ""))}
-        placeholder="0"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="numeric"
-        style={{
-          borderWidth: 1, borderColor: "#e6e6e6", backgroundColor: "#fff", color: "#111",
-          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
-        }}
-      />
-    </View>
-  );
-}
+  title: {
+    color: theme.colors.textHi,
+    fontSize: 28,
+    marginTop: 18,
+    fontFamily: "Geist_800ExtraBold",
+    letterSpacing: 0.2,
+  },
+  rule: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 999,
+    marginTop: 8,
+  },
 
-function LabeledMultiline({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: "#111", fontWeight: "800", marginBottom: 6 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        multiline
-        numberOfLines={4}
-        style={{
-          borderWidth: 1, borderColor: "#e6e6e6", backgroundColor: "#fff", color: "#111",
-          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, minHeight: 96,
-          textAlignVertical: "top",
-        }}
-      />
-    </View>
-  );
-}
+  input: {
+    backgroundColor: "#0E1216",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    color: theme.colors.textHi,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  inputBig: {
+    minHeight: 160,
+    textAlignVertical: "top",
+  },
+
+  saveBtn: {
+    backgroundColor: theme.colors.primary600,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  saveText: {
+    color: "#06160D",
+    fontFamily: "Geist_700Bold",
+    fontSize: 16,
+  },
+});
+
+
+
 
 

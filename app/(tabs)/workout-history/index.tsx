@@ -134,7 +134,7 @@ export default function WorkoutHistoryIndex() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
       {/* Header */}
       <View style={{ alignItems: "center", paddingHorizontal: 16, paddingTop: 8 }}>
-        <Text style={styles.header}>Workout History</Text>
+        <Text style={styles.header}>History</Text>
         <View style={styles.headerUnderline} />
       </View>
 
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 0.2,
     fontWeight: Platform.select({ ios: "900", android: "700" }) as any,
-    fontFamily: FONT.displayBold, // CHANGE: Font 3 for header
+    fontFamily: "Geist_800ExtraBold", // CHANGE: Font 3 for header
   },
   headerUnderline: {
     height: 3,

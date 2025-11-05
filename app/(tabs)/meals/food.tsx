@@ -1,4 +1,3 @@
-// app/(tabs)/meals/food.tsx
 import React, { useMemo, useState } from "react";
 import {
   SafeAreaView,
@@ -9,6 +8,8 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -18,39 +19,82 @@ import {
   type FoodEntry,
 } from "../../../providers/MealsContext";
 
-/* ---- Theme ---- */
+/* ---- Theme (matches scan screen) ---- */
 const DARK = "#0A0F14";
 const CARD = "#111822";
 const TEXT = "#E6F1FF";
 const DIM = "#8AA0B5";
 const GREEN = "#2BF996";
-const STROKE = "#1A2430";
 
-/* ---- Helpers ---- */
-const round = (n: number | null | undefined) => (n == null ? 0 : Math.round(n));
-const scale = (v: number | null | undefined, pct: number) =>
-  v == null ? 0 : Math.round((v * pct) / 100);
-const kcalFromMacros = (p: number, c: number, f: number) => p * 4 + c * 4 + f * 9;
+/* -------------------- helpers: robust number + key lookup -------------------- */
+const asNum = (v: any): number | null =>
+  v == null ? null : Number.isFinite(+v) ? +v : null;
 
-/** simple line style generator for a line between (x1,y1) and (x2,y2) */
-function lineStyle(x1: number, y1: number, x2: number, y2: number, color: string) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
-  return {
-    position: "absolute" as const,
-    left: x1,
-    top: y1,
-    width: len,
-    height: 2,
-    backgroundColor: color,
-    transform: [{ rotateZ: `${ang}deg` }],
-    borderRadius: 1,
-  };
+/** get first numeric value among possible paths (supports nested objects) */
+function pickNumber(obj: any, paths: string[]): number | null {
+  for (const p of paths) {
+    // support simple "a.b.c" paths
+    const parts = p.split(".");
+    let cur: any = obj;
+    for (const part of parts) {
+      if (!cur) break;
+      cur = cur[part];
+    }
+    const n = asNum(cur);
+    if (n != null) return n;
+  }
+  return null;
 }
 
-export default function FoodBioScreen() {
+/** Normalize per-serving sugar in grams */
+function getSugarG(x: any): number | null {
+  // common keys across our providers
+  const g =
+    pickNumber(x, [
+      "sugar",
+      "sugars",
+      "total_sugars",
+      "totalSugars",
+      "sugars_total",
+      "sugar_g",
+      "sugars_g",
+      "sugars_grams",
+      "sugar_grams",
+      "nutrition.sugar",
+      "nutrition.sugars",
+      "nutriments.sugars",
+    ]);
+  return g;
+}
+
+/** Normalize per-serving sodium in grams (accept mg + salt) */
+function getSodiumG(x: any): number | null {
+  // direct grams first
+  const g =
+    pickNumber(x, [
+      "sodium",
+      "sodium_g",
+      "nutrition.sodium",
+      "nutriments.sodium",
+    ]);
+  if (g != null) return g;
+
+  // mg -> g
+  const mg = pickNumber(x, ["sodium_mg", "nutrition.sodium_mg", "nutriments.sodium_mg"]);
+  if (mg != null) return mg / 1000;
+
+  // salt (g) -> sodium (g)
+  const saltG = pickNumber(x, ["salt", "salt_g", "nutrition.salt", "nutriments.salt"]);
+  if (saltG != null) return saltG / 2.5;
+
+  return null;
+}
+
+/** scale by servings, keeping one decimal */
+const scale = (v: number | null, servings: number) =>
+  v == null ? null : Math.round(v * servings * 10) / 10;
+
+export default function FoodDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ meal?: string; food?: string; entryId?: string }>();
 
@@ -59,13 +103,13 @@ export default function FoodBioScreen() {
 
   const { meals, addFood, updateServingPct } = useMeals();
 
-  // A) from Meals list
+  /** A) Opened from already-tracked entry */
   const existingEntry: FoodEntry | undefined = useMemo(
     () => (entryId ? meals[meal].find((e) => e.entryId === entryId) : undefined),
     [entryId, meal, meals]
   );
 
-  // B) from Search
+  /** B) Opened from search results */
   const incomingFood: Food | null = useMemo(() => {
     if (!params.food) return null;
     try {
@@ -75,141 +119,148 @@ export default function FoodBioScreen() {
     }
   }, [params.food]);
 
-  // Portion %
-  const [pct, setPct] = useState<number>(existingEntry?.servingPct ?? 100);
-  const changePct = (delta: number) =>
-    setPct((p) => Math.min(500, Math.max(1, p + delta)));
+  /** Determine base values shown for 1 serving */
+  const base = (existingEntry as any) ?? (incomingFood as any) ?? {};
+  const basePerServing = {
+    calories: asNum(base.calories),
+    protein: asNum(base.protein),
+    carbs: asNum(base.carbs),
+    fat: asNum(base.fat),
+    sugar: getSugarG(base),
+    sodium: getSodiumG(base),
+  };
 
-  // Base values
-  const base = existingEntry ?? incomingFood ?? ({} as Food);
-  const protein = round(base.protein ?? 0);
-  const carbs = round(base.carbs ?? 0);
-  const fat = round(base.fat ?? 0);
-  const baseKcal = base.calories != null ? round(base.calories) : kcalFromMacros(protein, carbs, fat);
+  /** Controlled servings input: default 1 for search, or entry.servingPct/100 for existing */
+  const [servingsText, setServingsText] = useState(
+    existingEntry ? String(Math.max(0.01, (existingEntry.servingPct ?? 100) / 100)) : "1"
+  );
+  const servings = Math.max(0, Number(servingsText.replace(/[^\d.]/g, "")) || 0);
 
-  // Display scaled
-  const dispProtein = scale(protein, pct);
-  const dispCarbs = scale(carbs, pct);
-  const dispFat = scale(fat, pct);
-  const dispKcal = scale(baseKcal, pct);
+  /** Scaled values to display */
+  const shown = useMemo(
+    () => ({
+      calories: scale(basePerServing.calories, servings),
+      protein: scale(basePerServing.protein, servings),
+      carbs: scale(basePerServing.carbs, servings),
+      fat: scale(basePerServing.fat, servings),
+      sugar: scale(basePerServing.sugar, servings),
+      sodium: scale(basePerServing.sodium, servings),
+    }),
+    [
+      basePerServing.calories,
+      basePerServing.protein,
+      basePerServing.carbs,
+      basePerServing.fat,
+      basePerServing.sugar,
+      basePerServing.sodium,
+      servings,
+    ]
+  );
 
   const title = (existingEntry?.name ?? incomingFood?.name ?? "Food").trim();
   const brand = (existingEntry?.brand ?? incomingFood?.brand)?.trim();
   const servingSize = (existingEntry?.servingSize ?? incomingFood?.servingSize)?.trim();
 
+  /** Save / Add */
   const onSaveExisting = () => {
     if (!existingEntry) return;
+    const pct = Math.max(1, Math.round((servings || 1) * 100)); // servings -> servingPct
     updateServingPct(meal, existingEntry.entryId, pct);
     router.back();
   };
   const onAddFromSearch = () => {
     if (!incomingFood) return;
+    // IMPORTANT: also normalize sugar & sodium into top-level fields so day totals track them
+    const normalizedSugar = getSugarG(incomingFood);
+    const normalizedSodium = getSodiumG(incomingFood);
+
     const payload: Food = {
       ...incomingFood,
       id: undefined,
-      ...( { servingPct: pct } as any ),
+      ...(normalizedSugar != null ? { sugar: normalizedSugar } : {}),
+      ...(normalizedSodium != null ? { sodium: normalizedSodium } : {}),
+      ...( { servingPct: Math.max(1, Math.round((servings || 1) * 100)) } as any ),
       source: incomingFood.source ?? "search",
     };
     addFood(meal, payload);
     router.back();
   };
 
-  // Triangle geometry
-  const W = 260; // width
-  const H = 200; // height
-  const pad = 14;
-  const A = { x: pad, y: H - pad };        // left base
-  const B = { x: W - pad, y: H - pad };    // right base
-  const C = { x: W / 2, y: pad };          // apex
-
+  /** UI — post-scan style (no outer heading/green line) */
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: DARK }}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} style={{ flex: 1 }}>
-        {/* Header */}
+        {/* back-only header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Text style={styles.backArrow}>‹</Text>
           </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
           <View style={{ width: 36 }} />
         </View>
-        {/* Green underline */}
-        <View style={styles.underline} />
 
-        {/* Body */}
-        <View style={{ padding: 16, gap: 18 }}>
-          {/* Macro Triangle */}
-          <View style={styles.triCard}>
-            <View style={{ width: W, height: H, alignSelf: "center" }}>
-              {/* sides */}
-              <View style={lineStyle(A.x, A.y, B.x, B.y, "#ffd200")} />
-              <View style={lineStyle(A.x, A.y, C.x, C.y, "#ff4c4c")} />
-              <View style={lineStyle(B.x, B.y, C.x, C.y, "#6aa3ff")} />
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={{ flex: 1 }}>
+            <View style={{ padding: 16, gap: 18 }}>
+              <View style={styles.card}>
+                <View style={styles.headerBox}>
+                  <Text style={styles.title} numberOfLines={2}>
+                    {title}
+                  </Text>
+                  {!!brand && <Text style={styles.dim}>{brand}</Text>}
+                  {!!servingSize && <Text style={styles.dim}>Serving size: {servingSize}</Text>}
+                </View>
 
-              {/* labels */}
-              <Text style={[styles.sideText, { left: 6, top: 30 }]}>{dispProtein}g{"\n"}Protein</Text>
-              <Text style={[styles.sideText, { right: 6, top: 30, textAlign: "right" }]}>{dispCarbs}g{"\n"}Carbs</Text>
-              <Text style={[styles.sideText, { bottom: 2, alignSelf: "center" }]}>{dispFat}g Fats</Text>
+                {/* Servings row */}
+                <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <Text style={styles.section}>Servings:</Text>
+                  <TextInput
+                    value={servingsText}
+                    onChangeText={setServingsText}
+                    placeholder="Number of Servings…"
+                    placeholderTextColor="#8AA0B5"
+                    keyboardType="decimal-pad"
+                    style={[styles.servingsInput, { flex: 1 }]}
+                  />
+                </View>
 
-              {/* center kcal */}
-              <View style={{ position: "absolute", left: 0, top: 0, width: W, height: H, alignItems: "center", justifyContent: "center" }}>
-                <Text style={styles.centerKcal}>{dispKcal} Calories</Text>
+                {/* Macros (no fiber) */}
+                <View style={{ marginTop: 16 }}>
+                  <Text style={styles.section}>Macros</Text>
+                  {macroRow("Calories", shown.calories, "kcal")}
+                  {macroRow("Protein",  shown.protein,  "g")}
+                  {macroRow("Carbs",    shown.carbs,    "g")}
+                  {macroRow("Fat",      shown.fat,      "g")}
+                  {macroRow("Sugar",    shown.sugar,    "g")}
+                  {macroRow("Sodium",   shown.sodium,   "g")}
+                </View>
               </View>
             </View>
 
-            <View style={{ gap: 6 }}>
-              {brand ? <Text style={{ color: DIM }}>{brand}</Text> : null}
-              {servingSize ? <Text style={{ color: DIM }}>Serving size: {servingSize}</Text> : null}
+            {/* Footer */}
+            <View style={styles.footer}>
+              {existingEntry ? (
+                <Pressable onPress={onSaveExisting} style={styles.saveBtn}>
+                  <Text style={styles.saveText}>Save</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={onAddFromSearch} style={styles.saveBtn}>
+                  <Text style={styles.saveText}>Add to {meal}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
-
-          {/* % of Servings */}
-          <View style={styles.sidePanel}>
-            <Text style={styles.panelTitle}>% of Servings</Text>
-            <View style={styles.pctRow}>
-              <Pressable onPress={() => changePct(-10)} style={styles.pctBtn}>
-                <Text style={styles.pctBtnText}>–10</Text>
-              </Pressable>
-
-              <TextInput
-                value={String(pct)}
-                onChangeText={(t) => {
-                  const n = Number(t.replace(/[^\d]/g, ""));
-                  setPct(Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 100);
-                }}
-                keyboardType="numeric"
-                style={styles.pctInput}
-                placeholder="100"
-                placeholderTextColor={DIM}
-              />
-              <Text style={styles.pctSign}>%</Text>
-
-              <Pressable onPress={() => changePct(+10)} style={styles.pctBtn}>
-                <Text style={styles.pctBtnText}>+10</Text>
-              </Pressable>
-            </View>
-
-            <Text style={[styles.panelTitle, { marginTop: 14 }]}>Rating:</Text>
-            <View style={styles.ratingBox}>
-              <Text style={{ color: DIM, fontStyle: "italic" }}>Future</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          {existingEntry ? (
-            <Pressable onPress={onSaveExisting} style={styles.saveBtn}>
-              <Text style={styles.saveText}>Save</Text>
-            </Pressable>
-          ) : (
-            <Pressable onPress={onAddFromSearch} style={styles.saveBtn}>
-              <Text style={styles.saveText}>Add to {meal}</Text>
-            </Pressable>
-          )}
-        </View>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function macroRow(label: string, value?: number | null, unit?: string) {
+  return (
+    <View style={styles.rowBetween}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue}>{value != null ? `${value} ${unit || ""}` : "—"}</Text>
+    </View>
   );
 }
 
@@ -224,66 +275,44 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   backArrow: { color: TEXT, fontSize: 26, lineHeight: 26, fontWeight: "700" },
-  headerTitle: { flex: 1, color: TEXT, fontSize: 20, fontWeight: "900", textAlign: "center" },
-  underline: { height: 3, backgroundColor: GREEN, marginHorizontal: 16, borderRadius: 2 },
 
-  triCard: {
+  card: {
     backgroundColor: CARD,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: STROKE,
+    borderRadius: 16,
     padding: 14,
-    gap: 10,
+    borderWidth: 1,
+    borderColor: "#1a2430",
   },
-  centerKcal: { color: TEXT, fontSize: 20, fontWeight: "900" },
-  sideText: { position: "absolute", color: TEXT, fontWeight: "800" },
+  headerBox: {
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1a2430",
+    marginBottom: 6,
+  },
 
-  sidePanel: {
-    backgroundColor: CARD,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: STROKE,
-    padding: 14,
-  },
-  panelTitle: { color: TEXT, fontWeight: "900", marginBottom: 1 },
-  pctRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center", // centered row
-    gap: 8,
-  },
-  pctBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: STROKE,
-    backgroundColor: "#0B121A",
-  },
-  pctBtnText: { color: TEXT, fontWeight: "800" },
-  pctInput: {
-    minWidth: 80,
+  title: { color: TEXT, fontSize: 18, fontWeight: "800" },
+  section: { color: TEXT, fontSize: 14, fontWeight: "700" },
+  dim: { color: DIM },
+
+  servingsInput: {
     backgroundColor: "#0E141C",
     color: TEXT,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: STROKE,
-    textAlign: "center",
+    borderColor: "#1a2430",
     fontWeight: "900",
   },
-  pctSign: { color: "#9FB2C5", fontWeight: "900" },
-  ratingBox: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: STROKE,
-    borderRadius: 10,
-    backgroundColor: "#0B121A",
+
+  rowBetween: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
+    justifyContent: "space-between",
+    paddingVertical: 6,
   },
+  rowLabel: { color: TEXT, fontSize: 14 },
+  rowValue: { color: GREEN, fontSize: 14, fontWeight: "800" },
 
   footer: { padding: 16 },
   saveBtn: {
@@ -296,4 +325,8 @@ const styles = StyleSheet.create({
   },
   saveText: { color: "#052d1b", fontWeight: "900", fontSize: 16 },
 });
+
+
+
+
 

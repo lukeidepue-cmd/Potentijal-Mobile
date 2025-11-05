@@ -850,7 +850,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textHi,
     fontSize: 28,
     letterSpacing: 0.2,
-    fontFamily: FONT.displayBold, // Font 3
+    fontFamily: "Geist_800ExtraBold", // Font 3
   },
   headerUnderline: {
     height: 3,

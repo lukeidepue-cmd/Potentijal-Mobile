@@ -1,3 +1,4 @@
+// app/(tabs)/(home)/hockey/index.tsx
 import React, { useMemo, useRef, useState } from "react";
 import {
   View,
@@ -17,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { theme } from "../../../../constants/theme";
+import Svg, { G, Line as SvgLine, Path, Circle, Text as SvgText } from "react-native-svg";
 
 import {
   useFonts as useGeist,
@@ -78,6 +80,52 @@ function IntervalChip({
   );
 }
 
+/* ---------- Progress chart helpers (graph) ---------- */
+type MetricKey = "reps" | "filler1" | "filler2";
+type RangeKey = "7d" | "30d" | "90d" | "180d" | "360d";
+type Pt = { x: number; y: number; date: Date };
+
+function binsFor(range: RangeKey) {
+  switch (range) {
+    case "7d": return { bins: 7, stepDays: 1 };
+    case "30d": return { bins: 5, stepDays: 6 };
+    case "90d": return { bins: 9, stepDays: 10 };
+    case "180d": return { bins: 6, stepDays: 30 };
+    case "360d": return { bins: 6, stepDays: 60 };
+  }
+}
+function baseAvgFor(metric: MetricKey) {
+  if (metric === "reps") return 120;
+  if (metric === "filler1") return 50;
+  return 80; // filler2
+}
+function randomNear(avg: number, spread: number) {
+  return Math.max(0, Math.round(avg + (Math.random() * 2 - 1) * spread));
+}
+function makeSeries(metric: MetricKey, range: RangeKey, _exercise: string): { data: Pt[]; avg: number } {
+  const { bins, stepDays } = binsFor(range);
+  const avg = baseAvgFor(metric);
+  const spread = Math.max(4, Math.round(avg * 0.18));
+  const data: Pt[] = Array.from({ length: bins }).map((_, i) => {
+    const daysBack = (bins - 1 - i) * stepDays;
+    const d = new Date();
+    d.setDate(d.getDate() - daysBack);
+    return { x: i + 1, y: randomNear(avg, spread), date: d };
+  });
+  return { data, avg };
+}
+function yTicksFrom(avg: number) {
+  const step = Math.max(1, Math.round(avg * 0.06));
+  const arr = [
+    avg - step * 4, avg - step * 3, avg - step * 2, avg - step,
+    avg, avg + step, avg + step * 2, avg + step * 3, avg + step * 4,
+  ].map((n) => Math.max(0, n));
+  return Array.from(new Set(arr)).sort((a, b) => a - b);
+}
+const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+const yOnly = (d: Date) => `${d.getFullYear()}`;
+
+/* --------------------------------- Screen -------------------------------- */
 export default function HockeyHome() {
   const [geistLoaded] = useGeist({
     Geist_400Regular,
@@ -101,12 +149,34 @@ export default function HockeyHome() {
     setPage(Math.max(0, Math.min(idx, goals.length - 1)));
   };
 
+  // existing state retained
   const [interval, setInterval] = useState<"7" | "30" | "90" | "180">("7");
   const [query, setQuery] = useState("");
-  const totals = useMemo(
-    () => ({ reps: 807, workouts: 9, growthFrom: 12, growthTo: 18 }),
-    [interval, query]
-  );
+
+  // ===== Graph state =====
+  const [metric, setMetric] = useState<MetricKey>("reps");
+  const [range, setRange] = useState<RangeKey>("90d");
+  const { data: series, avg } = useMemo(() => makeSeries(metric, range, query), [metric, range, query]);
+  const yTicks = useMemo(() => yTicksFrom(avg), [avg]);
+
+  // Chart layout
+  const H = 220;
+  const M = { top: 10, bottom: 32, left: 42, right: 16 };
+  const [w, setW] = useState(0);
+  const innerW = Math.max(0, w - M.left - M.right);
+  const innerH = H - M.top - M.bottom;
+  const yMin = yTicks[0];
+  const yMax = yTicks[yTicks.length - 1];
+  const xFor = (i: number) => M.left + (series.length <= 1 ? 0 : (i * innerW) / (series.length - 1));
+  const yFor = (val: number) => M.top + innerH - (innerH * (val - yMin)) / Math.max(1, yMax - yMin);
+  const linePath = useMemo(() => {
+    if (!series.length) return "";
+    return series.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(p.y)}`).join(" ");
+  }, [series, w, yMin, yMax]);
+
+  // Dropdown menus
+  const [openMetric, setOpenMetric] = useState(false);
+  const [openRange, setOpenRange] = useState(false);
 
   if (!fontsReady) {
     return (
@@ -186,19 +256,14 @@ export default function HockeyHome() {
         </LinearGradient>
       </Pressable>
 
-      {/* Progress */}
+      {/* ===================== Progress (GRAPH) ===================== */}
       <View style={styles.progressWrap}>
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
           <View style={styles.leftTick} />
           <Text style={styles.progressTitle}>Progress</Text>
         </View>
 
-        <View style={styles.intervalRow}>
-          {(["7", "30", "90", "180"] as const).map((k) => (
-            <IntervalChip key={k} label={`${k} Days`} active={interval === k} onPress={() => setInterval(k)} />
-          ))}
-        </View>
-
+        {/* Search */}
         <TextInput
           placeholder="Type a Drill or Exercise…"
           placeholderTextColor={theme.colors.textLo}
@@ -207,22 +272,95 @@ export default function HockeyHome() {
           style={styles.search}
         />
 
-        <View style={styles.rowLine}><View style={styles.rowMark} /><Text style={styles.rowLabel}>Total Reps</Text><Text style={styles.rowValue}>{totals.reps}</Text></View>
-        <View style={styles.rowLine}><View style={styles.rowMark} /><Text style={styles.rowLabel}>Total Workouts</Text><Text style={styles.rowValue}>{totals.workouts}</Text></View>
-        <View style={styles.rowLine}>
-          <View style={styles.rowMark} />
-          <Text style={styles.rowLabel}>Growth</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={styles.rowValue}>{totals.growthFrom}</Text>
-            <Text style={{ color: theme.colors.textLo, fontFamily: FONT.uiBold }}>→</Text>
-            <Text style={styles.rowValue}>{totals.growthTo}</Text>
+        {/* Dropdowns */}
+        <View style={styles.dropRow}>
+          {/* Metric */}
+          <View style={{ flex: 1, position: "relative" }}>
+            <Pressable
+              onPress={() => { setOpenMetric((v) => !v); setOpenRange(false); }}
+              style={[styles.dropdown, openMetric && styles.dropdownActive]}
+            >
+              <Text style={styles.dropdownText}>
+                {metric === "reps" ? "Reps" : metric === "filler1" ? "Filler 1" : "Filler 2"}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={openMetric ? theme.colors.primary600 : theme.colors.textHi} />
+            </Pressable>
+            {openMetric && (
+              <View style={styles.menu}>
+                {(["reps", "filler1", "filler2"] as MetricKey[]).map((k) => (
+                  <Pressable key={k} onPress={() => { setMetric(k); setOpenMetric(false); }} style={styles.menuItem}>
+                    <Text style={styles.menuText}>{k === "reps" ? "Reps" : k === "filler1" ? "Filler 1" : "Filler 2"}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Range */}
+          <View style={{ flex: 1, position: "relative" }}>
+            <Pressable
+              onPress={() => { setOpenRange((v) => !v); setOpenMetric(false); }}
+              style={[styles.dropdown, openRange && styles.dropdownActive]}
+            >
+              <Text style={styles.dropdownText}>
+                {range === "7d" ? "7 Days" : range === "30d" ? "30 Days" : range === "90d" ? "90 Days" : range === "180d" ? "180 Days" : "360 Days"}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={openRange ? theme.colors.primary600 : theme.colors.textHi} />
+            </Pressable>
+            {openRange && (
+              <View style={styles.menu}>
+                {(["7d", "30d", "90d", "180d", "360d"] as RangeKey[]).map((k) => (
+                  <Pressable key={k} onPress={() => { setRange(k); setOpenRange(false); }} style={styles.menuItem}>
+                    <Text style={styles.menuText}>
+                      {k === "7d" ? "7 Days" : k === "30d" ? "30 Days" : k === "90d" ? "90 Days" : k === "180d" ? "180 Days" : "360 Days"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         </View>
+
+        {/* Chart */}
+        <View style={styles.chartWrap} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+          <Svg width="100%" height="100%">
+            <G>
+              {yTicks.map((t, i) => {
+                const y = yFor(t);
+                return (
+                  <React.Fragment key={`y-${i}`}>
+                    <SvgLine x1={M.left} x2={w - M.right} y1={y} y2={y} stroke="#16222c" strokeWidth={1} />
+                    <SvgText x={M.left - 6} y={y + 3} fill="#8AA0B5" fontSize={10} textAnchor="end">
+                      {t}
+                    </SvgText>
+                  </React.Fragment>
+                );
+              })}
+              {series.map((p, i) => {
+                const x = xFor(i);
+                const lbl = range === "180d" || range === "360d" ? yOnly(p.date) : md(p.date);
+                return (
+                  <SvgText key={`x-${i}`} x={x} y={H - 12} fill="#8AA0B5" fontSize={10} textAnchor="middle">
+                    {lbl}
+                  </SvgText>
+                );
+              })}
+              <SvgLine x1={M.left} x2={w - M.right} y1={H - M.bottom} y2={H - M.bottom} stroke="#22303d" strokeWidth={1} />
+              <SvgLine x1={M.left} x2={M.left} y1={M.top} y2={H - M.bottom} stroke="#22303d" strokeWidth={1} />
+            </G>
+
+            {linePath ? <Path d={linePath} fill="none" stroke={theme.colors.primary600} strokeWidth={2} /> : null}
+            {series.map((p, i) => (
+              <Circle key={`pt-${i}`} cx={xFor(i)} cy={yFor(p.y)} r={4.5} stroke="#0a1a13" strokeWidth={2} fill={theme.colors.primary600} />
+            ))}
+          </Svg>
+        </View>
       </View>
+      {/* =================== /Progress (GRAPH) =================== */}
 
       {/* Cards */}
       <View style={{ gap: 20, marginTop: 12 }}>
-        <View style={styles.bigCard}>
+        <View className="bigCard" style={styles.bigCard}>
           <Image source={require("../../../../assets/players/matthews.jpg")} style={styles.heroImageTop} resizeMode="cover" />
           <View style={styles.bigContent}>
             <Text style={styles.bigTitle}>Log Game</Text>
@@ -265,7 +403,7 @@ const FONT = {
 
 /* -------------------------------- Styles -------------------------------- */
 const styles = StyleSheet.create({
-  header: { color: theme.colors.textHi, fontSize: 28, letterSpacing: 0.2, fontFamily: FONT.displayBold },
+  header: { color: theme.colors.textHi, fontSize: 28, letterSpacing: 0.2, fontFamily: "Geist_800ExtraBold" },
   headerUnderline: { height: 3, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, marginTop: 6 },
 
   sectionWrap: { borderRadius: 20, padding: SECTION_PAD, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.06)" },
@@ -291,11 +429,61 @@ const styles = StyleSheet.create({
   leftTick: { width: 3, height: 16, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.35)", marginRight: 10 },
   progressTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "800" },
 
+  /* Graph-specific additions (match Basketball/Baseball/Football) */
+  search: {
+    backgroundColor: "#0C1014",
+    color: theme.colors.textHi,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    marginTop: 8,
+    marginBottom: 10,
+    fontFamily: FONT.uiRegular,
+  },
+  dropRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  dropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: "#0A0F12",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  dropdownActive: { borderColor: theme.colors.primary600, backgroundColor: "#0E1316" },
+  dropdownText: { color: theme.colors.textHi, fontSize: 12, letterSpacing: 0.2, fontFamily: FONT.uiSemi },
+  menu: {
+    position: "absolute",
+    top: 42,
+    left: 0,
+    right: 0,
+    backgroundColor: "#0E1216",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
+    zIndex: 20,
+  },
+  menuItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  menuText: { color: theme.colors.textHi, fontSize: 12, fontFamily: FONT.uiSemi },
+  chartWrap: {
+    height: 220,
+    backgroundColor: "#0B121A",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1a2230",
+    overflow: "hidden",
+  },
+
+  /* Existing chip styles kept */
   intervalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6, marginBottom: 8, paddingHorizontal: 2 },
   chip: { borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.18)", paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#0A0F12" },
   chipText: { color: theme.colors.textHi, fontSize: 12, letterSpacing: 0.2, fontFamily: FONT.uiSemi },
-
-  search: { backgroundColor: "#0C1014", color: theme.colors.textHi, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)", marginTop: 8, marginBottom: 10, fontFamily: FONT.uiRegular },
 
   rowLine: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10 },
   rowMark: { width: 3, height: 16, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.35)" },
@@ -310,4 +498,5 @@ const styles = StyleSheet.create({
   cta: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   ctaText: { color: "#06160D", fontFamily: FONT.uiXBold },
 });
+
 
